@@ -60,25 +60,37 @@ def render_master() -> Image.Image:
     draw.rectangle([0, half, half, MASTER], fill=RED)
     draw.rectangle([half, half, MASTER, MASTER], fill=BLUE)
 
-    # Texte "AI Tech" en blanc, centré, gras, légère ombre portée pour
-    # rester lisible sur la frontière des quadrants.
-    text = "AI Tech"
-    font_size = int(MASTER * 0.22)
+    # "AI" sur la première ligne, "Tech" sur la seconde, en blanc gras.
+    # Légère ombre portée pour décoller le texte du fond bicolore.
+    line_top = "AI"
+    line_bottom = "Tech"
+    font_size = int(MASTER * 0.34)
     font = find_font(font_size)
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
-    tx = (MASTER - tw) / 2 - bbox[0]
-    ty = (MASTER - th) / 2 - bbox[1]
 
-    # Ombre portée douce pour décoller le texte du fond bicolore.
+    bbox_top = draw.textbbox((0, 0), line_top, font=font)
+    tw_t, th_t = bbox_top[2] - bbox_top[0], bbox_top[3] - bbox_top[1]
+    bbox_bot = draw.textbbox((0, 0), line_bottom, font=font)
+    tw_b, th_b = bbox_bot[2] - bbox_bot[0], bbox_bot[3] - bbox_bot[1]
+
+    line_gap = int(MASTER * 0.02)
+    block_h = th_t + line_gap + th_b
+    block_y = (MASTER - block_h) // 2
+
+    tx_t = (MASTER - tw_t) / 2 - bbox_top[0]
+    ty_t = block_y - bbox_top[1]
+    tx_b = (MASTER - tw_b) / 2 - bbox_bot[0]
+    ty_b = block_y + th_t + line_gap - bbox_bot[1]
+
+    # Ombre portée douce.
     shadow_layer = Image.new("RGBA", (MASTER, MASTER), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow_layer)
-    sdraw.text((tx + 4, ty + 8), text, font=font, fill=(0, 0, 0, 160))
+    sdraw.text((tx_t + 4, ty_t + 8), line_top, font=font, fill=(0, 0, 0, 160))
+    sdraw.text((tx_b + 4, ty_b + 8), line_bottom, font=font, fill=(0, 0, 0, 160))
     shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=8))
     img.alpha_composite(shadow_layer)
 
-    draw.text((tx, ty), text, font=font, fill=WHITE)
+    draw.text((tx_t, ty_t), line_top, font=font, fill=WHITE)
+    draw.text((tx_b, ty_b), line_bottom, font=font, fill=WHITE)
 
     return img
 
