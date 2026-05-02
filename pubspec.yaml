@@ -1,0 +1,52 @@
+name: ai_tech
+description: "Assistant IA 100% on-device — Files Tech"
+publish_to: 'none'
+version: 0.3.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Code partagé Files Tech (RecentFiles, UpdateService, CloudShareRow,
+  # LegalSupportSections, FormatUtils, PathSafe).
+  files_tech_core:
+    path: ../files_tech_core
+
+  # MediaPipe LLM Inference (Gemma 2 / Gemma 3 .task / .litertlm).
+  flutter_gemma: ^0.14.0
+
+  # Picker pour charger le modèle .task depuis le stockage utilisateur.
+  file_picker: ^8.1.2
+
+  # Stockage privé scoped à l'app (chats chiffrés, modèles dérivés).
+  path_provider: ^2.1.4
+
+  # Stockage local : préférences + chiffrement historique chat.
+  shared_preferences: ^2.3.2
+  pointycastle: ^3.9.1
+  crypto: ^3.0.3
+
+  # UI
+  share_plus: ^10.0.3
+
+  # Clé de chiffrement persistée dans Android Keystore (chats chiffrés AES-GCM).
+  flutter_secure_storage: ^9.2.2
+
+  # Pages légales et liens utiles (utilisés par AboutScreen via files_tech_core).
+  flutter_markdown: ^0.7.4
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/legal/
+    - assets/icon/
