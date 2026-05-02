@@ -31,7 +31,7 @@ class KeywordIndexer implements RagIndexer {
   @override
   Future<void> index(RagDocument document) async {
     await remove(document.id);
-    for (final chunk in document.chunks) {
+    for (final chunk in document.chunked()) {
       _chunks[chunk.id] = chunk;
       _chunkDoc[chunk.id] = document.id;
       final tokens = _tokenize(chunk.text);

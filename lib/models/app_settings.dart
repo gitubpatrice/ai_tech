@@ -9,6 +9,7 @@ class AppSettings {
     this.topK = 40,
     this.maxTokens = 1024,
     this.activeModelId,
+    this.activeChatId,
     this.firstLaunchCompleted = false,
   });
 
@@ -16,6 +17,7 @@ class AppSettings {
   final int topK;
   final int maxTokens;
   final String? activeModelId;
+  final String? activeChatId;
   final bool firstLaunchCompleted;
 
   static const double minTemperature = 0.1;
@@ -30,8 +32,10 @@ class AppSettings {
     int? topK,
     int? maxTokens,
     String? activeModelId,
+    String? activeChatId,
     bool? firstLaunchCompleted,
     bool clearActiveModel = false,
+    bool clearActiveChat = false,
   }) {
     return AppSettings(
       temperature: temperature ?? this.temperature,
@@ -39,6 +43,8 @@ class AppSettings {
       maxTokens: maxTokens ?? this.maxTokens,
       activeModelId:
           clearActiveModel ? null : (activeModelId ?? this.activeModelId),
+      activeChatId:
+          clearActiveChat ? null : (activeChatId ?? this.activeChatId),
       firstLaunchCompleted:
           firstLaunchCompleted ?? this.firstLaunchCompleted,
     );
@@ -49,6 +55,7 @@ class AppSettings {
         'topK': topK,
         'maxTokens': maxTokens,
         if (activeModelId != null) 'activeModelId': activeModelId,
+        if (activeChatId != null) 'activeChatId': activeChatId,
         'firstLaunchCompleted': firstLaunchCompleted,
       };
 
@@ -63,6 +70,7 @@ class AppSettings {
       maxTokens:
           (json['maxTokens'] as int?)?.clamp(minMaxTokens, maxMaxTokens) ?? 1024,
       activeModelId: json['activeModelId'] as String?,
+      activeChatId: json['activeChatId'] as String?,
       firstLaunchCompleted: json['firstLaunchCompleted'] as bool? ?? false,
     );
   }

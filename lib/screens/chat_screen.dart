@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/app_settings.dart';
@@ -10,10 +11,13 @@ import '../models/chat_session.dart';
 import '../models/model_entry.dart';
 import '../models/model_family.dart';
 import '../services/chat_service.dart';
+import '../services/rag/rag_service.dart';
 import '../services/storage/app_settings_store.dart';
 import '../services/storage/encrypted_chat_store.dart';
 import '../services/storage/model_registry.dart';
 import 'about_screen.dart';
+import 'chat_list_screen.dart';
+import 'documents_screen.dart';
 import 'settings_screen.dart';
 import 'spike_screen.dart';
 
@@ -56,6 +60,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _booting = true;
   bool _modelLoading = false;
   bool _generating = false;
+  bool _ragEnabled = false;
   String? _bootError;
 
   @override
@@ -89,18 +94,54 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _bootstrap() async {
     final settings = await AppSettingsStore.instance.load();
-    final loaded = await EncryptedChatStore.instance.load('current') ??
-        ChatSession.empty();
+
+    // S'assure que l'index RAG est prêt avant tout envoi de message
+    // (sinon `RagService.instance.isEmpty` peut renvoyer true à tort).
+    await RagService.instance.bootstrap();
+
+    // Charge la session active si elle existe, sinon en crée une nouvelle.
+    ChatSession? loaded;
+    if (settings.activeChatId != null) {
+      loaded = await EncryptedChatStore.instance.load(settings.activeChatId!);
+    }
+
+    // Migration v0.3 → v0.4 : s'il existe un ancien `current.aichat` et qu'on
+    // n'a rien trouvé via activeChatId, on le rapatrie vers un id moderne
+    // et on supprime l'ancien fichier — sinon il resterait orphelin.
+    if (loaded == null) {
+      final legacy =
+          await EncryptedChatStore.instance.load('current');
+      if (legacy != null) {
+        loaded = ChatSession(
+          id: ChatSession.newId(),
+          title: legacy.title,
+          createdAt: legacy.createdAt,
+          updatedAt: legacy.updatedAt,
+          messages: legacy.messages,
+        );
+        await EncryptedChatStore.instance.save(loaded);
+        await EncryptedChatStore.instance.deleteOne('current');
+      }
+    }
+
+    final session = loaded ?? ChatSession.empty();
 
     ModelEntry? active;
     if (settings.activeModelId != null) {
       active = await ModelRegistry.instance.findById(settings.activeModelId!);
     }
 
+    // Persiste l'id de session active (qu'elle soit nouvelle, migrée, ou
+    // simplement chargée — ça normalise l'état).
+    if (settings.activeChatId != session.id) {
+      await AppSettingsStore.instance
+          .save(settings.copyWith(activeChatId: session.id));
+    }
+
     if (!mounted) return;
     setState(() {
-      _settings = settings;
-      _session = loaded;
+      _settings = settings.copyWith(activeChatId: session.id);
+      _session = session;
       _activeModel = active;
     });
 
@@ -110,6 +151,51 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     if (!mounted) return;
     setState(() => _booting = false);
+  }
+
+  Future<void> _openChatList() async {
+    if (_generating) return;
+    _persistIfNeeded(); // sauvegarde la session courante avant changement
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => ChatListScreen(activeId: _session.id),
+      ),
+    );
+    if (!mounted || result == null) return;
+
+    if (result == ChatListScreen.resultNew) {
+      await _switchToSession(ChatSession.empty());
+    } else if (result != _session.id) {
+      final loaded = await EncryptedChatStore.instance.load(result);
+      if (loaded != null) await _switchToSession(loaded);
+    }
+  }
+
+  Future<void> _switchToSession(ChatSession next) async {
+    // 1. Tue tout streaming en cours pour éviter qu'un onDone tardif
+    //    pollue la nouvelle session (les callbacks référencent l'ancien
+    //    `assistantMsg` qui n'appartient plus à `_session`).
+    await _activeSub?.cancel();
+    _activeSub = null;
+    _streamingNotifier?.dispose();
+    _streamingNotifier = null;
+
+    // 2. Reset le contexte côté chat natif. La nouvelle session repart de
+    //    zéro côté LLM ; l'historique persisté reste sur disque tel quel.
+    if (_chat.isLoaded) {
+      await _chat.resetConversation();
+    }
+
+    // 3. Persiste le changement.
+    await AppSettingsStore.instance
+        .save(_settings.copyWith(activeChatId: next.id));
+
+    if (!mounted) return;
+    setState(() {
+      _generating = false;
+      _session = next;
+      _settings = _settings.copyWith(activeChatId: next.id);
+    });
   }
 
   Future<void> _loadActiveModel(ModelEntry entry, AppSettings settings) async {
@@ -182,8 +268,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     });
     _scrollToBottom();
 
+    // Si le RAG est activé, on s'assure d'abord que l'index est chargé
+    // (le bootstrap peut être encore en cours si l'utilisateur a tapé très
+    // vite après le démarrage). Puis on augmente la requête.
+    String prompt = text;
+    List<RagSource> sources = const [];
+    if (_ragEnabled) {
+      await RagService.instance.bootstrap();
+      if (!RagService.instance.isEmpty) {
+        final aug = await RagService.instance.augmentPrompt(text);
+        if (aug != null) {
+          prompt = aug.augmentedPrompt;
+          sources = aug.sources;
+        }
+      }
+    }
+    if (sources.isNotEmpty) {
+      assistantMsg.sources = sources;
+    }
+
     final buffer = StringBuffer();
-    _activeSub = _chat.sendMessage(text).listen(
+    _activeSub = _chat.sendMessage(prompt).listen(
       (chunk) {
         if (!mounted) return;
         buffer.write(chunk);
@@ -238,7 +343,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       builder: (ctx) => AlertDialog(
         title: const Text('Effacer cette conversation ?'),
         content: const Text(
-          'Le contenu chiffré sera supprimé du téléphone. Le modèle reste chargé.',
+          'Cette discussion sera supprimée du téléphone (chiffrée, irrécupérable). '
+          'Les autres conversations sont conservées.',
         ),
         actions: [
           TextButton(
@@ -252,14 +358,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
+    final oldId = _session.id;
     await _chat.resetConversation();
+    await EncryptedChatStore.instance.deleteOne(oldId);
+
+    final fresh = ChatSession.empty();
+    await AppSettingsStore.instance
+        .save(_settings.copyWith(activeChatId: fresh.id));
     if (!mounted) return;
     setState(() {
-      _session = ChatSession.empty();
+      _session = fresh;
+      _settings = _settings.copyWith(activeChatId: fresh.id);
     });
-    await EncryptedChatStore.instance.deleteAll();
   }
 
   Future<void> _openSettings() async {
@@ -375,14 +487,43 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Conversations',
+          icon: const Icon(Icons.menu),
+          onPressed: _generating ? null : _openChatList,
+        ),
         title: Text(
-          _activeModel?.displayName ?? 'AI Tech',
+          _session.safeTitle,
           overflow: TextOverflow.ellipsis,
         ),
         backgroundColor: theme.colorScheme.inversePrimary,
         actions: [
           IconButton(
-            tooltip: 'Effacer la conversation',
+            tooltip: 'Nouvelle conversation',
+            icon: const Icon(Icons.add_comment_outlined),
+            onPressed: _generating
+                ? null
+                : () async {
+                    _persistIfNeeded();
+                    await _switchToSession(ChatSession.empty());
+                  },
+          ),
+          IconButton(
+            tooltip: _ragEnabled
+                ? 'RAG actif (réponses basées sur vos documents)'
+                : 'Activer le RAG (réponses basées sur vos documents)',
+            icon: Icon(
+              _ragEnabled
+                  ? Icons.auto_stories
+                  : Icons.auto_stories_outlined,
+              color: _ragEnabled ? theme.colorScheme.primary : null,
+            ),
+            onPressed: _generating
+                ? null
+                : () => setState(() => _ragEnabled = !_ragEnabled),
+          ),
+          IconButton(
+            tooltip: 'Supprimer cette conversation',
             icon: const Icon(Icons.delete_sweep_outlined),
             onPressed:
                 _generating || _session.messages.isEmpty ? null : _clearConversation,
@@ -398,6 +539,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               switch (v) {
                 case 'export':
                   _exportConversation();
+                  break;
+                case 'documents':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DocumentsScreen()),
+                  );
                   break;
                 case 'about':
                   Navigator.of(context).push(
@@ -418,6 +564,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 child: const ListTile(
                   leading: Icon(Icons.share_outlined),
                   title: Text('Exporter la conversation'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'documents',
+                child: ListTile(
+                  leading: Icon(Icons.article_outlined),
+                  title: Text('Documents (RAG)'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -744,6 +898,11 @@ class _Bubble extends StatelessWidget {
         : theme.colorScheme.onSurface;
 
     final stream = streaming;
+    // Pendant le streaming : SelectableText (très peu coûteux à rebuild
+    // chaque token). À la fin de la génération (`stream == null`) on bascule
+    // vers `MarkdownBody` qui parse une seule fois — listes, gras, code,
+    // citations rendus proprement. Évite de payer le coût du parser markdown
+    // 200 fois pour une réponse de 200 tokens.
     final Widget body = stream != null
         ? ValueListenableBuilder<String>(
             valueListenable: stream,
@@ -752,9 +911,11 @@ class _Bubble extends StatelessWidget {
               style: TextStyle(color: fg, height: 1.35),
             ),
           )
-        : SelectableText(
+        : _renderBody(
+            context,
             message.text.isEmpty && message.pending ? '…' : message.text,
-            style: TextStyle(color: fg, height: 1.35),
+            fg,
+            isUser: isUser,
           );
 
     return Padding(
@@ -796,6 +957,11 @@ class _Bubble extends StatelessWidget {
                           ),
                         ),
                       ),
+                    if (!message.pending && message.sources.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: _SourcesRow(sources: message.sources, fg: fg),
+                      ),
                   ],
                 ),
               ),
@@ -803,6 +969,57 @@ class _Bubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _renderBody(
+    BuildContext context,
+    String text,
+    Color fg, {
+    required bool isUser,
+  }) {
+    if (isUser) {
+      // Côté user : on affiche brut, sélectionnable.
+      return SelectableText(
+        text,
+        style: TextStyle(color: fg, height: 1.35),
+      );
+    }
+    // Assistant : Markdown (listes, gras, italique, code, citations…).
+    final theme = Theme.of(context);
+    return MarkdownBody(
+      data: text,
+      selectable: true,
+      shrinkWrap: true,
+      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+        p: TextStyle(color: fg, height: 1.35, fontSize: 14),
+        h1: TextStyle(color: fg, fontSize: 20, fontWeight: FontWeight.w700),
+        h2: TextStyle(color: fg, fontSize: 18, fontWeight: FontWeight.w700),
+        h3: TextStyle(color: fg, fontSize: 16, fontWeight: FontWeight.w700),
+        listBullet: TextStyle(color: fg, fontSize: 14),
+        strong: TextStyle(color: fg, fontWeight: FontWeight.w700),
+        em: TextStyle(color: fg, fontStyle: FontStyle.italic),
+        blockquote: TextStyle(
+          color: fg.withValues(alpha: 0.85),
+          fontStyle: FontStyle.italic,
+        ),
+        code: TextStyle(
+          color: fg,
+          fontFamily: 'monospace',
+          fontSize: 13,
+          backgroundColor: theme.colorScheme.surface.withValues(alpha: 0.5),
+        ),
+        codeblockDecoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        codeblockPadding: const EdgeInsets.all(10),
+      ),
+      onTapLink: (_, href, _) {
+        // Sécurité : on ne lance jamais un lien depuis le chat (cohérent
+        // avec la promesse "100 % offline" — pas d'app de réception
+        // automatique). Le user peut copier-coller s'il veut consulter.
+      },
     );
   }
 
@@ -815,6 +1032,64 @@ class _Bubble extends StatelessWidget {
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: 1),
       ),
+    );
+  }
+}
+
+class _SourcesRow extends StatelessWidget {
+  const _SourcesRow({required this.sources, required this.fg});
+  final List<RagSource> sources;
+  final Color fg;
+
+  void _show(BuildContext context, RagSource s) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Source [${s.index}] · ${s.title}'),
+        content: SingleChildScrollView(
+          child: SelectableText(s.excerpt),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: sources
+          .map(
+            (s) => InkWell(
+              onTap: () => _show(context, s),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: fg.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '[${s.index}] ${s.title}',
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }

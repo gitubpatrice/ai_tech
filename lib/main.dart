@@ -1,13 +1,21 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 
 import 'screens/chat_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/rag/rag_service.dart';
 import 'services/storage/app_settings_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FlutterGemma.initialize();
+  // Lance le chargement de l'index RAG persisté en tâche de fond (silencieux
+  // si vide). Pas de `await` ici pour ne pas bloquer le démarrage de l'UI.
+  // Les chemins qui dépendent du bootstrap (chat _send, DocumentsScreen)
+  // re-appellent `bootstrap()` — idempotent grâce au flag `_booted`.
+  unawaited(RagService.instance.bootstrap());
   runApp(const AiTechApp());
 }
 

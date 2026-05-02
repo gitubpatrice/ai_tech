@@ -112,4 +112,36 @@ class EncryptedChatStore {
       } catch (_) {/* best-effort */}
     }
   }
+
+  /// Supprime une conversation précise.
+  Future<void> deleteOne(String id) async {
+    final file = await _fileFor(id);
+    if (await file.exists()) {
+      try {
+        await file.delete();
+      } catch (_) {/* best-effort */}
+    }
+  }
+
+  /// Liste toutes les conversations persistées, triées par date de mise à
+  /// jour décroissante (plus récente en haut).
+  ///
+  /// Les fichiers illisibles (clé tournée, corrompus) sont silencieusement
+  /// ignorés — ils seront supprimés au prochain `load()` qui leur tomberait
+  /// dessus.
+  Future<List<ChatSession>> listAll() async {
+    final dir = await _chatsDir();
+    if (!await dir.exists()) return const [];
+    final out = <ChatSession>[];
+    await for (final entity in dir.list()) {
+      if (entity is! File) continue;
+      final name = entity.path.split(RegExp(r'[\\/]')).last;
+      if (!name.endsWith('.aichat')) continue;
+      final id = name.substring(0, name.length - '.aichat'.length);
+      final session = await load(id);
+      if (session != null) out.add(session);
+    }
+    out.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return out;
+  }
 }

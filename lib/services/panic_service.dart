@@ -3,8 +3,9 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 import 'chat_service.dart';
 import 'crypto/secret_key.dart';
 import 'model_settings.dart';
-import 'rag/keyword_indexer.dart';
+import 'rag/rag_service.dart';
 import 'storage/app_settings_store.dart';
+import 'storage/document_store.dart';
 import 'storage/encrypted_chat_store.dart';
 import 'storage/model_registry.dart';
 
@@ -48,7 +49,11 @@ class PanicService {
 
     // 3, 4, 5, 6, 7. Wipe stockages — chaque échec n'arrête pas la suite.
     final wipes = <Future<void> Function()>[
-      KeywordIndexer.instance.clear,
+      // RagService.wipeAll efface l'index RAM ET les .aidoc chiffrés.
+      RagService.instance.wipeAll,
+      // Sécurité défensive : on fait un deleteAll du DocumentStore au cas
+      // où le RagService aurait été partiellement initialisé.
+      DocumentStore.instance.deleteAll,
       EncryptedChatStore.instance.deleteAll,
       ModelRegistry.instance.wipe,
       AppSettingsStore.instance.wipe,
