@@ -1,10 +1,17 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 
 import '../services/rag/document.dart';
 import '../services/rag/rag_service.dart';
+
+/// Lit un fichier texte dans un Isolate via compute() — évite de bloquer
+/// le thread UI sur des documents > 500 Ko (200+ ms sur S9).
+Future<String> _readTextInIsolate(String path) => compute(_readTextSync, path);
+
+String _readTextSync(String path) => File(path).readAsStringSync();
 
 /// Gestion des documents indexés pour le RAG.
 ///
@@ -113,7 +120,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     setState(() => _busy = true);
     try {
-      final text = await file.readAsString();
+      // compute() : lecture + décodage UTF-8 dans un Isolate -> UI fluide
+      // même sur S9 / Redmi 9C avec un .txt de plusieurs Mo.
+      final text = await _readTextInIsolate(file.path);
       if (text.trim().isEmpty) {
         _snack('Le fichier est vide.');
         return;

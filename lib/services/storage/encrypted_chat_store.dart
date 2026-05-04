@@ -2,11 +2,77 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:path_provider/path_provider.dart';
 
 import '../../models/chat_session.dart';
 import '../crypto/aes_gcm.dart';
 import '../crypto/secret_key.dart';
+
+/// Argument transmis à l'isolate pour décrypter en parallèle toutes les
+/// conversations. La clé est passée comme `Uint8List` (immutable, copiée
+/// dans le port d'isolate). L'isolate meurt après la tâche → pas de
+/// persistance résiduelle de la clé.
+class _ListAllArgs {
+  final List<String> paths;
+  final Uint8List key;
+  const _ListAllArgs(this.paths, this.key);
+}
+
+/// Argument transmis à l'isolate pour le save d'une conversation.
+class _SaveArgs {
+  final String path; // tmp path (le rename atomique reste sur main)
+  final Uint8List key;
+  final Uint8List aad;
+  final Uint8List plaintext;
+  const _SaveArgs(this.path, this.key, this.aad, this.plaintext);
+}
+
+/// Worker top-level — chiffre + écrit le tmp en parallèle. Le rename
+/// atomique reste sur main (très court). Évite ~50ms de freeze sur S9
+/// par save.
+void _encryptAndWriteInIsolate(_SaveArgs args) {
+  const magic = [0x41, 0x49, 0x43, 0x31]; // "AIC1"
+  final blob = AesGcm.encrypt(args.key, args.plaintext, aad: args.aad);
+  final out = Uint8List.fromList([...magic, ...blob]);
+  File(args.path).writeAsBytesSync(out, flush: true);
+}
+
+/// Worker top-level — décrypte tous les `.aichat` en parallèle dans un
+/// Isolate via `compute()`. Évite le freeze N×AES-GCM sur le UI thread.
+List<ChatSession> _decryptAllInIsolate(_ListAllArgs args) {
+  const magic = [0x41, 0x49, 0x43, 0x31]; // "AIC1"
+  const magicLen = 4;
+  final out = <ChatSession>[];
+  for (final path in args.paths) {
+    try {
+      final blob = File(path).readAsBytesSync();
+      if (blob.length < magicLen) continue;
+      var bad = false;
+      for (var i = 0; i < magicLen; i++) {
+        if (blob[i] != magic[i]) {
+          bad = true;
+          break;
+        }
+      }
+      if (bad) continue;
+      final body = Uint8List.fromList(blob.sublist(magicLen));
+      // L'AAD = id = nom du fichier sans extension.
+      final name = path.split(RegExp(r'[\\/]')).last;
+      final id = name.endsWith('.aichat')
+          ? name.substring(0, name.length - '.aichat'.length)
+          : name;
+      final aad = Uint8List.fromList(utf8.encode(id));
+      final plaintext = AesGcm.decrypt(args.key, body, aad: aad);
+      final json = jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
+      out.add(ChatSession.fromJson(json));
+    } catch (_) {
+      // Fichier corrompu : on l'ignore. Le main thread le supprimera au
+      // prochain `load(id)` qui retombera dessus.
+    }
+  }
+  return out;
+}
 
 /// Persiste les conversations chiffrées sur disque.
 ///
@@ -92,14 +158,18 @@ class EncryptedChatStore {
     final file = await _fileFor(session.id);
     final tmp = File('${file.path}.tmp');
     final key = await SecretKey.instance.getOrCreate();
-    final plaintext = utf8.encode(jsonEncode(session.toJson()));
+    final plaintext = Uint8List.fromList(
+      utf8.encode(jsonEncode(session.toJson())),
+    );
     final aad = Uint8List.fromList(utf8.encode(session.id));
-    final blob = AesGcm.encrypt(key, Uint8List.fromList(plaintext), aad: aad);
-    final out = Uint8List.fromList([..._magic, ...blob]);
-    await tmp.writeAsBytes(out, flush: true);
-    // rename atomique : sur POSIX/Android, rename remplace l'existant en une
-    // seule syscall. Le delete+rename précédent ouvrait une fenêtre où, si
-    // l'OS tuait l'app entre les deux, la conversation était perdue.
+    // AES-GCM + write tmp dans un Isolate -> évite ~50ms de freeze sur S9
+    // par save (chats persistés à chaque tour utilisateur + sur paused).
+    await compute(
+      _encryptAndWriteInIsolate,
+      _SaveArgs(tmp.path, key, aad, plaintext),
+    );
+    // rename atomique sur main : sur POSIX/Android, rename remplace
+    // l'existant en une seule syscall (très court, pas besoin d'isolate).
     await tmp.rename(file.path);
   }
 
@@ -136,16 +206,24 @@ class EncryptedChatStore {
   Future<List<ChatSession>> listAll() async {
     final dir = await _chatsDir();
     if (!await dir.exists()) return const [];
-    final out = <ChatSession>[];
+    // 1. Énumération filesystem sur main (rapide, juste readdir).
+    final paths = <String>[];
     await for (final entity in dir.list()) {
       if (entity is! File) continue;
-      final name = entity.path.split(RegExp(r'[\\/]')).last;
-      if (!name.endsWith('.aichat')) continue;
-      final id = name.substring(0, name.length - '.aichat'.length);
-      final session = await load(id);
-      if (session != null) out.add(session);
+      if (!entity.path.endsWith('.aichat')) continue;
+      paths.add(entity.path);
     }
-    out.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return out;
+    if (paths.isEmpty) return const [];
+    // 2. Récupère la clé Keystore (1 appel main, indépendant de N).
+    final key = await SecretKey.instance.getOrCreate();
+    // 3. Décryptage massif des N fichiers DANS L'ISOLATE -> main fluide
+    //    même sur 100+ conversations (avant : N × AES-GCM séquentiel
+    //    sur thread UI = freeze ~1-2s à l'ouverture de la liste).
+    final sessions = await compute(
+      _decryptAllInIsolate,
+      _ListAllArgs(paths, key),
+    );
+    sessions.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return sessions;
   }
 }
