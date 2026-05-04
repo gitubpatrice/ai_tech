@@ -149,19 +149,27 @@ class EncryptedChatStore {
   /// Sauvegarde une session de manière atomique et sérialisée.
   ///
   /// Les appels concurrents sont chaînés : la sauvegarde N+1 attend la N.
+  ///
+  /// **Snapshot immédiat** : `toJson()` est appelé MAINTENANT (synchronously)
+  /// avant que la sauvegarde n'entre dans `_saveChain`. Sans ce snapshot, si
+  /// l'utilisateur tapait un message pendant qu'un save N était en attente,
+  /// le `_doSave` capturait l'état au moment du compute() — pas au moment
+  /// du `save()` — et persistait des messages "en cours" (pending) ou des
+  /// mutations involontaires.
   Future<void> save(ChatSession session) {
-    _saveChain = _saveChain.then((_) => _doSave(session));
-    return _saveChain;
-  }
-
-  Future<void> _doSave(ChatSession session) async {
-    final file = await _fileFor(session.id);
-    final tmp = File('${file.path}.tmp');
-    final key = await SecretKey.instance.getOrCreate();
+    final id = session.id;
     final plaintext = Uint8List.fromList(
       utf8.encode(jsonEncode(session.toJson())),
     );
-    final aad = Uint8List.fromList(utf8.encode(session.id));
+    _saveChain = _saveChain.then((_) => _doSave(id, plaintext));
+    return _saveChain;
+  }
+
+  Future<void> _doSave(String id, Uint8List plaintext) async {
+    final file = await _fileFor(id);
+    final tmp = File('${file.path}.tmp');
+    final key = await SecretKey.instance.getOrCreate();
+    final aad = Uint8List.fromList(utf8.encode(id));
     // AES-GCM + write tmp dans un Isolate -> évite ~50ms de freeze sur S9
     // par save (chats persistés à chaque tour utilisateur + sur paused).
     await compute(

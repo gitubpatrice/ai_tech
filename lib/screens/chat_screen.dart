@@ -87,7 +87,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _streamingNotifier?.dispose();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
-    _persistIfNeeded(); // best-effort
+    // Persistance "best-effort" : dispose() est synchrone, on ne peut pas
+    // await. Si l'OS tue l'app juste après pop, le save peut être tronqué.
+    // La persistance FIABLE passe par didChangeAppLifecycleState(paused)
+    // qui est appelé AVANT dispose et dont le save est await en pratique
+    // (l'OS laisse ~5s avant de tuer après paused).
+    _persistIfNeeded();
     _chat.dispose();
     super.dispose();
   }

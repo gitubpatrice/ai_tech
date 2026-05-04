@@ -374,8 +374,9 @@ class _DocTile extends StatelessWidget {
   }
 
   static String _sizeLabel(int chars) {
-    if (chars >= 10000)
+    if (chars >= 10000) {
       return '${(chars / 1000).toStringAsFixed(1)} k caractères';
+    }
     return '$chars caractères';
   }
 
