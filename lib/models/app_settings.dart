@@ -41,34 +41,37 @@ class AppSettings {
       temperature: temperature ?? this.temperature,
       topK: topK ?? this.topK,
       maxTokens: maxTokens ?? this.maxTokens,
-      activeModelId:
-          clearActiveModel ? null : (activeModelId ?? this.activeModelId),
-      activeChatId:
-          clearActiveChat ? null : (activeChatId ?? this.activeChatId),
-      firstLaunchCompleted:
-          firstLaunchCompleted ?? this.firstLaunchCompleted,
+      activeModelId: clearActiveModel
+          ? null
+          : (activeModelId ?? this.activeModelId),
+      activeChatId: clearActiveChat
+          ? null
+          : (activeChatId ?? this.activeChatId),
+      firstLaunchCompleted: firstLaunchCompleted ?? this.firstLaunchCompleted,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'temperature': temperature,
-        'topK': topK,
-        'maxTokens': maxTokens,
-        if (activeModelId != null) 'activeModelId': activeModelId,
-        if (activeChatId != null) 'activeChatId': activeChatId,
-        'firstLaunchCompleted': firstLaunchCompleted,
-      };
+    'temperature': temperature,
+    'topK': topK,
+    'maxTokens': maxTokens,
+    if (activeModelId != null) 'activeModelId': activeModelId,
+    if (activeChatId != null) 'activeChatId': activeChatId,
+    'firstLaunchCompleted': firstLaunchCompleted,
+  };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
-      temperature: (json['temperature'] as num?)?.toDouble().clamp(
+      temperature:
+          (json['temperature'] as num?)?.toDouble().clamp(
             minTemperature,
             maxTemperature,
           ) ??
           0.7,
       topK: (json['topK'] as int?)?.clamp(minTopK, maxTopK) ?? 40,
       maxTokens:
-          (json['maxTokens'] as int?)?.clamp(minMaxTokens, maxMaxTokens) ?? 1024,
+          (json['maxTokens'] as int?)?.clamp(minMaxTokens, maxMaxTokens) ??
+          1024,
       activeModelId: json['activeModelId'] as String?,
       activeChatId: json['activeChatId'] as String?,
       firstLaunchCompleted: json['firstLaunchCompleted'] as bool? ?? false,

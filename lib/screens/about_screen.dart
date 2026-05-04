@@ -76,16 +76,15 @@ class _Header extends StatelessWidget {
         const SizedBox(height: 14),
         Text(
           'AI Tech',
-          style: Theme.of(context)
-              .textTheme
-              .headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         Text(
           'Version $version',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: cs.outline,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: cs.outline),
         ),
       ],
     );
@@ -114,11 +113,13 @@ class _PromiseCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             const _Bullet(
-              text: '100 % hors-ligne — pas de permission Internet, '
+              text:
+                  '100 % hors-ligne — pas de permission Internet, '
                   'pas de cloud, pas de compte.',
             ),
             const _Bullet(
-              text: 'Conversations chiffrées AES-256-GCM avec une clé '
+              text:
+                  'Conversations chiffrées AES-256-GCM avec une clé '
                   'unique stockée dans le Android Keystore.',
             ),
             const _Bullet(

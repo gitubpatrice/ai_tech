@@ -73,7 +73,9 @@ class EncryptedChatStore {
       // pour éviter de retomber dessus à chaque démarrage.
       try {
         await file.delete();
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
       return null;
     }
   }
@@ -92,14 +94,12 @@ class EncryptedChatStore {
     final key = await SecretKey.instance.getOrCreate();
     final plaintext = utf8.encode(jsonEncode(session.toJson()));
     final aad = Uint8List.fromList(utf8.encode(session.id));
-    final blob = AesGcm.encrypt(
-      key,
-      Uint8List.fromList(plaintext),
-      aad: aad,
-    );
+    final blob = AesGcm.encrypt(key, Uint8List.fromList(plaintext), aad: aad);
     final out = Uint8List.fromList([..._magic, ...blob]);
     await tmp.writeAsBytes(out, flush: true);
-    if (await file.exists()) await file.delete();
+    // rename atomique : sur POSIX/Android, rename remplace l'existant en une
+    // seule syscall. Le delete+rename précédent ouvrait une fenêtre où, si
+    // l'OS tuait l'app entre les deux, la conversation était perdue.
     await tmp.rename(file.path);
   }
 
@@ -109,7 +109,9 @@ class EncryptedChatStore {
     await for (final entity in dir.list()) {
       try {
         await entity.delete(recursive: true);
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
     }
   }
 
@@ -119,7 +121,9 @@ class EncryptedChatStore {
     if (await file.exists()) {
       try {
         await file.delete();
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
     }
   }
 

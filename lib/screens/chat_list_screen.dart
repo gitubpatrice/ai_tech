@@ -76,53 +76,53 @@ class _ChatListScreenState extends State<ChatListScreen> {
         backgroundColor: theme.colorScheme.inversePrimary,
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            Navigator.of(context).pop(ChatListScreen.resultNew),
+        onPressed: () => Navigator.of(context).pop(ChatListScreen.resultNew),
         icon: const Icon(Icons.add_comment_outlined),
         label: const Text('Nouvelle'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _sessions.isEmpty
-              ? _Empty(
-                  onCreate: () => Navigator.of(context)
-                      .pop(ChatListScreen.resultNew),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: _sessions.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final s = _sessions[i];
-                    final isActive = s.id == widget.activeId;
-                    return ListTile(
-                      leading: Icon(
-                        isActive ? Icons.chat : Icons.chat_bubble_outline,
-                        color: isActive ? theme.colorScheme.primary : null,
-                      ),
-                      title: Text(
-                        s.safeTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight:
-                              isActive ? FontWeight.w700 : FontWeight.normal,
-                        ),
-                      ),
-                      subtitle: Text(
-                        '${s.messages.length} message${s.messages.length > 1 ? 's' : ''} · '
-                        '${_relativeDate(s.updatedAt)}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: 'Supprimer',
-                        onPressed: () => _delete(s),
-                      ),
-                      onTap: () => Navigator.of(context).pop(s.id),
-                    );
-                  },
-                ),
+          ? _Empty(
+              onCreate: () =>
+                  Navigator.of(context).pop(ChatListScreen.resultNew),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: _sessions.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final s = _sessions[i];
+                final isActive = s.id == widget.activeId;
+                return ListTile(
+                  leading: Icon(
+                    isActive ? Icons.chat : Icons.chat_bubble_outline,
+                    color: isActive ? theme.colorScheme.primary : null,
+                  ),
+                  title: Text(
+                    s.safeTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: isActive
+                          ? FontWeight.w700
+                          : FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${s.messages.length} message${s.messages.length > 1 ? 's' : ''} · '
+                    '${_relativeDate(s.updatedAt)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Supprimer',
+                    onPressed: () => _delete(s),
+                  ),
+                  onTap: () => Navigator.of(context).pop(s.id),
+                );
+              },
+            ),
     );
   }
 

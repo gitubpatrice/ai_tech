@@ -55,9 +55,13 @@ class SecretKey {
     _cached = null;
     try {
       await _storage.delete(key: _kSecretKey);
-    } catch (_) {/* on tente deleteAll quand même */}
+    } catch (_) {
+      /* on tente deleteAll quand même */
+    }
     try {
       await _storage.deleteAll();
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   }
 }

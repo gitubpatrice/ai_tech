@@ -148,22 +148,21 @@ class RagService {
         ..writeln(safeExtract)
         ..writeln('<<<EXTRAIT_${i + 1}_FIN>>>')
         ..writeln();
-      sources.add(RagSource(
-        index: i + 1,
-        documentId: doc.id,
-        title: doc.title,
-        excerpt: _sanitize(hit.chunk.text, 240),
-      ));
+      sources.add(
+        RagSource(
+          index: i + 1,
+          documentId: doc.id,
+          title: doc.title,
+          excerpt: _sanitize(hit.chunk.text, 240),
+        ),
+      );
     }
 
     buf
       ..writeln('QUESTION DE L\'UTILISATEUR (à traiter normalement) :')
       ..write(query);
 
-    return RagAugmentation(
-      augmentedPrompt: buf.toString(),
-      sources: sources,
-    );
+    return RagAugmentation(augmentedPrompt: buf.toString(), sources: sources);
   }
 
   /// Tronque + neutralise les motifs susceptibles d'être interprétés comme
@@ -171,16 +170,24 @@ class RagService {
   /// importé ou téléchargé).
   static String _sanitize(String s, int max) {
     var clipped = s.length > max ? '${s.substring(0, max)}…' : s;
-    // Neutralise les balises de prompt courantes (Llama [INST], ChatML
-    // <|system|>, instructions impératives en début de ligne).
+    // Neutralise les balises de prompt courantes :
+    // - Llama : [INST] / [/INST]
+    // - ChatML / Llama 3 : <|system|>, <|im_start|>, <|begin_of_text|>,
+    //   <|end_of_text|>, <|eot_id|>, <|endoftext|>
+    // - Gemma : <start_of_turn>, <end_of_turn>, <bos>, <eos>
+    // - Tour Gemma déguisé : "\nuser\n" / "\nmodel\n" en délimiteur
+    // - Instructions impératives en début de ligne (### System, etc.)
     final patterns = <RegExp>[
       RegExp(r'\[\s*INST\s*\]', caseSensitive: false),
       RegExp(r'\[\s*/\s*INST\s*\]', caseSensitive: false),
       RegExp(r'<\|\s*[a-z_]+\s*\|>', caseSensitive: false),
       RegExp(r'<\|im_(start|end)\|>', caseSensitive: false),
-      RegExp(r'<start_of_turn>|<end_of_turn>', caseSensitive: false),
-      RegExp(r'(^|\n)\s*###\s+(System|Instruction|Réponse)',
-          caseSensitive: false),
+      RegExp(r'<(start_of_turn|end_of_turn|bos|eos)>', caseSensitive: false),
+      RegExp(r'\n\s*(user|model|system|assistant)\s*\n', caseSensitive: false),
+      RegExp(
+        r'(^|\n)\s*###\s+(System|Instruction|Réponse)',
+        caseSensitive: false,
+      ),
     ];
     for (final p in patterns) {
       clipped = clipped.replaceAll(p, '·');
@@ -198,10 +205,7 @@ class RagService {
 
 /// Résultat de l'augmentation du prompt.
 class RagAugmentation {
-  const RagAugmentation({
-    required this.augmentedPrompt,
-    required this.sources,
-  });
+  const RagAugmentation({required this.augmentedPrompt, required this.sources});
 
   final String augmentedPrompt;
   final List<RagSource> sources;

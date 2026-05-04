@@ -63,7 +63,9 @@ class DocumentStore {
     } catch (_) {
       try {
         await file.delete();
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
       return null;
     }
   }
@@ -79,14 +81,10 @@ class DocumentStore {
     final key = await SecretKey.instance.getOrCreate();
     final plaintext = utf8.encode(jsonEncode(doc.toJson()));
     final aad = Uint8List.fromList(utf8.encode(doc.id));
-    final blob = AesGcm.encrypt(
-      key,
-      Uint8List.fromList(plaintext),
-      aad: aad,
-    );
+    final blob = AesGcm.encrypt(key, Uint8List.fromList(plaintext), aad: aad);
     final out = Uint8List.fromList([..._magic, ...blob]);
     await tmp.writeAsBytes(out, flush: true);
-    if (await file.exists()) await file.delete();
+    // rename atomique POSIX/Android : remplace l'existant sans fenêtre TOCTOU.
     await tmp.rename(file.path);
   }
 
@@ -95,7 +93,9 @@ class DocumentStore {
     if (await file.exists()) {
       try {
         await file.delete();
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
     }
   }
 
@@ -105,7 +105,9 @@ class DocumentStore {
     await for (final entity in dir.list()) {
       try {
         await entity.delete(recursive: true);
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
     }
   }
 

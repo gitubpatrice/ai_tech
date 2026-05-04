@@ -34,13 +34,13 @@ class ModelEntry {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'displayName': displayName,
-        'path': path,
-        'family': family,
-        'fileType': fileType,
-        'sizeBytes': sizeBytes,
-      };
+    'id': id,
+    'displayName': displayName,
+    'path': path,
+    'family': family,
+    'fileType': fileType,
+    'sizeBytes': sizeBytes,
+  };
 
   factory ModelEntry.fromJson(Map<String, dynamic> json) {
     return ModelEntry(

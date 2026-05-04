@@ -66,8 +66,8 @@ class KeywordIndexer implements RagIndexer {
 
     final scores = <String, double>{};
     final totalChunks = _chunks.length;
-    final avgLen = _chunkLen.values.fold<int>(0, (a, b) => a + b) /
-        max(1, totalChunks);
+    final avgLen =
+        _chunkLen.values.fold<int>(0, (a, b) => a + b) / max(1, totalChunks);
 
     for (final term in terms) {
       final posting = _postings[term];
@@ -105,9 +105,7 @@ class KeywordIndexer implements RagIndexer {
     final lower = text.toLowerCase();
     final stripped = _stripDiacritics(lower);
     final raw = stripped.split(RegExp(r'[^a-z0-9]+'));
-    return raw
-        .where((w) => w.length >= 3 && !_stopWords.contains(w))
-        .toList();
+    return raw.where((w) => w.length >= 3 && !_stopWords.contains(w)).toList();
   }
 
   static String _stripDiacritics(String s) {

@@ -45,20 +45,14 @@ class LlmService {
     ).fromFile(path).install();
   }
 
-  Future<void> load({
-    int maxTokens = 1024,
-    PreferredBackend? backend,
-  }) async {
+  Future<void> load({int maxTokens = 1024, PreferredBackend? backend}) async {
     await dispose();
     _model = await FlutterGemma.getActiveModel(
       maxTokens: maxTokens,
       preferredBackend: backend,
       supportImage: false,
     );
-    _session = await _model!.createSession(
-      temperature: 0.7,
-      topK: 40,
-    );
+    _session = await _model!.createSession(temperature: 0.7, topK: 40);
   }
 
   /// Stream tokens pour le prompt donné (single-turn, pas d'historique).
@@ -75,10 +69,14 @@ class LlmService {
   Future<void> dispose() async {
     try {
       await _session?.close();
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
     try {
       await _model?.close();
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
     _session = null;
     _model = null;
   }

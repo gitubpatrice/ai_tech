@@ -51,12 +51,14 @@ class RagDocument {
       }
       final raw = text.substring(start, end).trim();
       if (raw.isNotEmpty) {
-        out.add(RagChunk(
-          id: '$id-${pos.toString().padLeft(4, '0')}',
-          text: raw,
-          documentId: id,
-          position: pos,
-        ));
+        out.add(
+          RagChunk(
+            id: '$id-${pos.toString().padLeft(4, '0')}',
+            text: raw,
+            documentId: id,
+            position: pos,
+          ),
+        );
         pos++;
       }
       if (end >= n) break;
@@ -68,18 +70,18 @@ class RagDocument {
   static int _findLastBreak(String s, int from, int to) {
     for (var i = to - 1; i >= from; i--) {
       final c = s.codeUnitAt(i);
-      if (c == 0x0A /* \n */ || c == 0x2E /* . */) return i + 1;
+      if (c == 0x0A /* \n */ || c == 0x2E /* . */ ) return i + 1;
     }
     return -1;
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'text': text,
-        'createdAt': createdAt.toIso8601String(),
-        'charCount': charCount,
-      };
+    'id': id,
+    'title': title,
+    'text': text,
+    'createdAt': createdAt.toIso8601String(),
+    'charCount': charCount,
+  };
 
   factory RagDocument.fromJson(Map<String, dynamic> json) {
     final text = json['text'] as String? ?? '';

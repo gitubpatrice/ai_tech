@@ -79,7 +79,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _removeModel(ModelEntry entry) async {
     final confirm = await _confirm(
       title: 'Retirer ce modèle ?',
-      body: 'Le fichier ${entry.displayName} ne sera pas supprimé du stockage. '
+      body:
+          'Le fichier ${entry.displayName} ne sera pas supprimé du stockage. '
           'Il sera juste retiré de la liste des modèles enregistrés.',
       destructive: true,
       yesLabel: 'Retirer',
@@ -104,7 +105,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _clearChats() async {
     final confirm = await _confirm(
       title: 'Effacer toutes les conversations ?',
-      body: 'L\'historique chiffré sera supprimé. Vos modèles et paramètres '
+      body:
+          'L\'historique chiffré sera supprimé. Vos modèles et paramètres '
           'sont conservés.',
       destructive: true,
       yesLabel: 'Effacer',
@@ -118,7 +120,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _triggerPanic() async {
     final confirm = await _confirm(
       title: 'Mode panique',
-      body: 'Cette action efface en bloc :\n\n'
+      body:
+          'Cette action efface en bloc :\n\n'
           '• toutes les conversations chiffrées\n'
           '• la clé de chiffrement (irrécupérable)\n'
           '• la liste des modèles enregistrés\n'
@@ -227,10 +230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: _addModel,
                   ),
                   const Divider(),
-                  _SectionHeader(
-                    icon: Icons.tune,
-                    title: 'Génération',
-                  ),
+                  _SectionHeader(icon: Icons.tune, title: 'Génération'),
                   _SliderTile(
                     label: 'Créativité (température)',
                     valueLabel: s.temperature.toStringAsFixed(2),
@@ -297,9 +297,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('À propos'),
                     subtitle: const Text('Version, légal, support'),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const AboutScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const AboutScreen()),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -327,9 +325,9 @@ class _SectionHeader extends StatelessWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: cs.primary,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: cs.primary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -420,8 +418,8 @@ class _SliderTile extends StatelessWidget {
           Text(
             helper,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
         ],
       ),

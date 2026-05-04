@@ -44,16 +44,19 @@ class ModelPickerScreen extends StatelessWidget {
       if (context.mounted) snack('Erreur du picker système : $e');
       return;
     }
-    final picked0 =
-        picked?.files.isNotEmpty == true ? picked!.files.first : null;
+    final picked0 = picked?.files.isNotEmpty == true
+        ? picked!.files.first
+        : null;
     if (picked0 == null) return; // annulé
 
     final path = picked0.path;
     final originalName = picked0.name.toLowerCase();
     if (path == null) {
       if (context.mounted) {
-        snack('Le système n\'a pas fourni de chemin lisible. '
-            'Copiez le fichier dans Téléchargements et réessayez.');
+        snack(
+          'Le système n\'a pas fourni de chemin lisible. '
+          'Copiez le fichier dans Téléchargements et réessayez.',
+        );
       }
       return;
     }
@@ -84,7 +87,8 @@ class ModelPickerScreen extends StatelessWidget {
         break;
       }
     }
-    final hasTfl = head.length >= 8 &&
+    final hasTfl =
+        head.length >= 8 &&
         ((head[4] == 0x54 && head[5] == 0x46 && head[6] == 0x4C) ||
             (head[0] == 0x54 && head[1] == 0x46 && head[2] == 0x4C));
     if (!hasPk && !hasTfl) {
@@ -142,9 +146,7 @@ class ModelPickerScreen extends StatelessWidget {
                 'Format `.task` ou `.litertlm`, typiquement entre 500 Mo et 4 Go '
                 '(Gemma, Qwen, Phi, Llama).',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: cs.outline,
-                ),
+                style: theme.textTheme.bodyMedium?.copyWith(color: cs.outline),
               ),
               const SizedBox(height: 24),
               Card(

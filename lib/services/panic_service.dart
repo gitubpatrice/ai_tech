@@ -37,7 +37,9 @@ class PanicService {
     // 1. Coupe le chat avec timeout dur.
     try {
       await ChatService.instance.dispose().timeout(_disposeTimeout);
-    } catch (_) {/* on continue, peu importe l'état natif */}
+    } catch (_) {
+      /* on continue, peu importe l'état natif */
+    }
 
     // 2. Désinstalle le modèle MediaPipe actif (best-effort).
     try {
@@ -45,7 +47,9 @@ class PanicService {
       for (final id in installed) {
         await FlutterGemma.uninstallModel(id);
       }
-    } catch (_) {/* on continue */}
+    } catch (_) {
+      /* on continue */
+    }
 
     // 3, 4, 5, 6, 7. Wipe stockages — chaque échec n'arrête pas la suite.
     final wipes = <Future<void> Function()>[
@@ -62,13 +66,17 @@ class PanicService {
     for (final w in wipes) {
       try {
         await w();
-      } catch (_) {/* on continue */}
+      } catch (_) {
+        /* on continue */
+      }
     }
 
     // 8. Clé AES en dernier — sans elle, plus rien ne peut être déchiffré
     //    même si une copie d'un .aichat traîne.
     try {
       await SecretKey.instance.wipe();
-    } catch (_) {/* on continue */}
+    } catch (_) {
+      /* on continue */
+    }
   }
 }

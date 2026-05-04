@@ -31,19 +31,21 @@ class ChatSession {
   final List<ChatMessage> messages;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'messages': messages
-            .where((m) => !m.pending) // n'archive que les messages terminés
-            .map((m) => {
-                  'text': m.text,
-                  'isUser': m.isUser,
-                  'timestamp': m.timestamp.toIso8601String(),
-                })
-            .toList(),
-      };
+    'id': id,
+    'title': title,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'messages': messages
+        .where((m) => !m.pending) // n'archive que les messages terminés
+        .map(
+          (m) => {
+            'text': m.text,
+            'isUser': m.isUser,
+            'timestamp': m.timestamp.toIso8601String(),
+          },
+        )
+        .toList(),
+  };
 
   factory ChatSession.fromJson(Map<String, dynamic> json) {
     return ChatSession(
@@ -53,11 +55,13 @@ class ChatSession {
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       messages: (json['messages'] as List? ?? [])
           .cast<Map<String, dynamic>>()
-          .map((m) => ChatMessage(
-                text: m['text'] as String,
-                isUser: m['isUser'] as bool,
-                timestamp: DateTime.parse(m['timestamp'] as String),
-              ))
+          .map(
+            (m) => ChatMessage(
+              text: m['text'] as String,
+              isUser: m['isUser'] as bool,
+              timestamp: DateTime.parse(m['timestamp'] as String),
+            ),
+          )
           .toList(),
     );
   }

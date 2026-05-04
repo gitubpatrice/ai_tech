@@ -56,19 +56,19 @@ class _AiTechAppState extends State<AiTechApp> {
       ),
       routes: {
         '/': (_) => FutureBuilder<bool>(
-              future: _firstLaunchDone,
-              builder: (ctx, snap) {
-                if (!snap.hasData) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                if (!snap.data!) {
-                  return OnboardingScreen(onCompleted: _refresh);
-                }
-                return const ChatScreen();
-              },
-            ),
+          future: _firstLaunchDone,
+          builder: (ctx, snap) {
+            if (!snap.hasData) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (!snap.data!) {
+              return OnboardingScreen(onCompleted: _refresh);
+            }
+            return const ChatScreen();
+          },
+        ),
       },
     );
   }

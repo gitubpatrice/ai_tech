@@ -24,10 +24,7 @@ abstract class RagIndexer {
 }
 
 class RagSearchHit {
-  const RagSearchHit({
-    required this.chunk,
-    required this.score,
-  });
+  const RagSearchHit({required this.chunk, required this.score});
 
   final RagChunk chunk;
   final double score;

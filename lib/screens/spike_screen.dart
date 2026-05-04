@@ -144,8 +144,9 @@ class _SpikeScreenState extends State<SpikeScreen> {
               ),
               const SizedBox(height: 8),
               FilledButton.icon(
-                onPressed:
-                    _llm.isLoaded && !_running && !_loading ? _runBench : null,
+                onPressed: _llm.isLoaded && !_running && !_loading
+                    ? _runBench
+                    : null,
                 icon: _running
                     ? const SizedBox(
                         width: 16,
@@ -290,12 +291,12 @@ class _MetricsCard extends StatelessWidget {
   }
 
   Widget _row(String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          children: [
-            Expanded(child: Text(k)),
-            Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      children: [
+        Expanded(child: Text(k)),
+        Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
+      ],
+    ),
+  );
 }

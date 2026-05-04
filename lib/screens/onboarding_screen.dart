@@ -43,10 +43,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
       final current = await AppSettingsStore.instance.load();
       await AppSettingsStore.instance.save(
-        current.copyWith(
-          activeModelId: entry.id,
-          firstLaunchCompleted: true,
-        ),
+        current.copyWith(activeModelId: entry.id, firstLaunchCompleted: true),
       );
       if (!mounted) return;
       widget.onCompleted();
@@ -137,9 +134,9 @@ class _WelcomeStep extends StatelessWidget {
           Text(
             'Bienvenue dans AI Tech',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           Text(
@@ -151,7 +148,8 @@ class _WelcomeStep extends StatelessWidget {
           const _Feature(
             icon: Icons.cloud_off_outlined,
             title: '100 % hors-ligne',
-            text: 'Aucune connexion Internet. L\'app n\'a même pas la '
+            text:
+                'Aucune connexion Internet. L\'app n\'a même pas la '
                 'permission d\'en faire.',
           ),
           const _Feature(
@@ -179,9 +177,9 @@ class _WelcomeStep extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AboutScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
             child: const Text('À propos · Confidentialité'),
           ),
         ],
@@ -231,9 +229,9 @@ class _ImportStep extends StatelessWidget {
           Text(
             'Choisir un modèle',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -285,9 +283,9 @@ class _ImportStep extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AboutScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
             child: const Text('À propos · Confidentialité'),
           ),
         ],
@@ -297,11 +295,7 @@ class _ImportStep extends StatelessWidget {
 }
 
 class _Feature extends StatelessWidget {
-  const _Feature({
-    required this.icon,
-    required this.title,
-    required this.text,
-  });
+  const _Feature({required this.icon, required this.title, required this.text});
 
   final IconData icon;
   final String title;
@@ -326,10 +320,7 @@ class _Feature extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  text,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text(text, style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),

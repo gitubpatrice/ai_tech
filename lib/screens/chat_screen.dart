@@ -109,8 +109,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // n'a rien trouvé via activeChatId, on le rapatrie vers un id moderne
     // et on supprime l'ancien fichier — sinon il resterait orphelin.
     if (loaded == null) {
-      final legacy =
-          await EncryptedChatStore.instance.load('current');
+      final legacy = await EncryptedChatStore.instance.load('current');
       if (legacy != null) {
         loaded = ChatSession(
           id: ChatSession.newId(),
@@ -134,8 +133,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // Persiste l'id de session active (qu'elle soit nouvelle, migrée, ou
     // simplement chargée — ça normalise l'état).
     if (settings.activeChatId != session.id) {
-      await AppSettingsStore.instance
-          .save(settings.copyWith(activeChatId: session.id));
+      await AppSettingsStore.instance.save(
+        settings.copyWith(activeChatId: session.id),
+      );
     }
 
     if (!mounted) return;
@@ -157,9 +157,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_generating) return;
     _persistIfNeeded(); // sauvegarde la session courante avant changement
     final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => ChatListScreen(activeId: _session.id),
-      ),
+      MaterialPageRoute(builder: (_) => ChatListScreen(activeId: _session.id)),
     );
     if (!mounted || result == null) return;
 
@@ -187,8 +185,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
 
     // 3. Persiste le changement.
-    await AppSettingsStore.instance
-        .save(_settings.copyWith(activeChatId: next.id));
+    await AppSettingsStore.instance.save(
+      _settings.copyWith(activeChatId: next.id),
+    );
 
     if (!mounted) return;
     setState(() {
@@ -288,35 +287,40 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
 
     final buffer = StringBuffer();
-    _activeSub = _chat.sendMessage(prompt).listen(
-      (chunk) {
-        if (!mounted) return;
-        buffer.write(chunk);
-        // Pas de setState : seul le notifier est touché → seul le widget
-        // _StreamingBubble qui l'écoute est reconstruit.
-        notifier.value = buffer.toString();
-        _scrollToBottom();
-      },
-      onError: (e) {
-        if (!mounted) return;
-        assistantMsg.text = 'Erreur : $e';
-        assistantMsg.pending = false;
-        setState(() => _generating = false);
-        _persistIfNeeded();
-      },
-      onDone: () {
-        if (!mounted) return;
-        // Au done, on transfère le buffer dans le message persistant et on
-        // marque la bulle comme terminée → le ValueListenableBuilder cesse
-        // d'être utilisé, on revient à un rendu statique de la bulle.
-        assistantMsg.text = buffer.toString();
-        assistantMsg.pending = false;
-        _session.updatedAt = DateTime.now();
-        setState(() => _generating = false);
-        _persistIfNeeded();
-      },
-      cancelOnError: true,
-    );
+    _activeSub = _chat
+        .sendMessage(prompt)
+        .listen(
+          (chunk) {
+            if (!mounted) return;
+            buffer.write(chunk);
+            // Pas de setState : seul le notifier est touché → seul le widget
+            // _StreamingBubble qui l'écoute est reconstruit.
+            notifier.value = buffer.toString();
+            _scrollToBottom();
+          },
+          onError: (e) {
+            if (!mounted) return;
+            assistantMsg.text = 'Erreur : $e';
+            assistantMsg.pending = false;
+            setState(() => _generating = false);
+            // Cancel explicite : si une exception remonte ici, le natif peut être
+            // resté en état "génération" → cancelGeneration garantit le cleanup.
+            unawaited(_chat.cancelGeneration());
+            _persistIfNeeded();
+          },
+          onDone: () {
+            if (!mounted) return;
+            // Au done, on transfère le buffer dans le message persistant et on
+            // marque la bulle comme terminée → le ValueListenableBuilder cesse
+            // d'être utilisé, on revient à un rendu statique de la bulle.
+            assistantMsg.text = buffer.toString();
+            assistantMsg.pending = false;
+            _session.updatedAt = DateTime.now();
+            setState(() => _generating = false);
+            _persistIfNeeded();
+          },
+          cancelOnError: true,
+        );
   }
 
   Future<void> _stop() async {
@@ -365,8 +369,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     await EncryptedChatStore.instance.deleteOne(oldId);
 
     final fresh = ChatSession.empty();
-    await AppSettingsStore.instance
-        .save(_settings.copyWith(activeChatId: fresh.id));
+    await AppSettingsStore.instance.save(
+      _settings.copyWith(activeChatId: fresh.id),
+    );
     if (!mounted) return;
     setState(() {
       _session = fresh;
@@ -375,9 +380,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openSettings() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
     // Au retour, on ré-applique les éventuels changements (modèle / params).
     if (!mounted) return;
     final settings = await AppSettingsStore.instance.load();
@@ -387,7 +392,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
 
     final modelChanged = active?.id != _activeModel?.id;
-    final paramsChanged = settings.temperature != _settings.temperature ||
+    final paramsChanged =
+        settings.temperature != _settings.temperature ||
         settings.topK != _settings.topK ||
         settings.maxTokens != _settings.maxTokens;
 
@@ -405,8 +411,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _exportConversation() async {
-    final completed =
-        _session.messages.where((m) => !m.pending).toList(growable: false);
+    final completed = _session.messages
+        .where((m) => !m.pending)
+        .toList(growable: false);
     if (completed.isEmpty) return;
 
     // Avertissement explicite : le partage Android peut envoyer le contenu
@@ -449,10 +456,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ..writeln(m.text)
         ..writeln();
     }
-    await Share.share(
-      buf.toString(),
-      subject: 'Conversation AI Tech',
-    );
+    await Share.share(buf.toString(), subject: 'Conversation AI Tech');
   }
 
   void _useQuickPrompt(String text) {
@@ -492,10 +496,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           icon: const Icon(Icons.menu),
           onPressed: _generating ? null : _openChatList,
         ),
-        title: Text(
-          _session.safeTitle,
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: Text(_session.safeTitle, overflow: TextOverflow.ellipsis),
         backgroundColor: theme.colorScheme.inversePrimary,
         actions: [
           IconButton(
@@ -513,9 +514,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ? 'RAG actif (réponses basées sur vos documents)'
                 : 'Activer le RAG (réponses basées sur vos documents)',
             icon: Icon(
-              _ragEnabled
-                  ? Icons.auto_stories
-                  : Icons.auto_stories_outlined,
+              _ragEnabled ? Icons.auto_stories : Icons.auto_stories_outlined,
               color: _ragEnabled ? theme.colorScheme.primary : null,
             ),
             onPressed: _generating
@@ -525,8 +524,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           IconButton(
             tooltip: 'Supprimer cette conversation',
             icon: const Icon(Icons.delete_sweep_outlined),
-            onPressed:
-                _generating || _session.messages.isEmpty ? null : _clearConversation,
+            onPressed: _generating || _session.messages.isEmpty
+                ? null
+                : _clearConversation,
           ),
           IconButton(
             tooltip: 'Paramètres',
@@ -768,7 +768,8 @@ class _EmptyChatHint extends StatelessWidget {
     _QuickPrompt(
       icon: Icons.edit_outlined,
       label: 'Améliorer un texte',
-      prompt: 'Améliore ce texte (orthographe, style, fluidité) en gardant '
+      prompt:
+          'Améliore ce texte (orthographe, style, fluidité) en gardant '
           'le sens d\'origine :\n\n',
     ),
     _QuickPrompt(
@@ -843,9 +844,9 @@ class _EmptyChatHint extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 'Démarrages rapides',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: cs.outline,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: cs.outline),
               ),
             ],
           ),
@@ -854,11 +855,13 @@ class _EmptyChatHint extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: _prompts
-              .map((p) => ActionChip(
-                    avatar: Icon(p.icon, size: 18, color: cs.primary),
-                    label: Text(p.label),
-                    onPressed: () => onQuickPrompt(p.prompt),
-                  ))
+              .map(
+                (p) => ActionChip(
+                  avatar: Icon(p.icon, size: 18, color: cs.primary),
+                  label: Text(p.label),
+                  onPressed: () => onQuickPrompt(p.prompt),
+                ),
+              )
               .toList(),
         ),
       ],
@@ -921,8 +924,9 @@ class _Bubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Flexible(
             child: GestureDetector(
@@ -980,10 +984,7 @@ class _Bubble extends StatelessWidget {
   }) {
     if (isUser) {
       // Côté user : on affiche brut, sélectionnable.
-      return SelectableText(
-        text,
-        style: TextStyle(color: fg, height: 1.35),
-      );
+      return SelectableText(text, style: TextStyle(color: fg, height: 1.35));
     }
     // Assistant : Markdown (listes, gras, italique, code, citations…).
     final theme = Theme.of(context);
@@ -1046,9 +1047,7 @@ class _SourcesRow extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Source [${s.index}] · ${s.title}'),
-        content: SingleChildScrollView(
-          child: SelectableText(s.excerpt),
-        ),
+        content: SingleChildScrollView(child: SelectableText(s.excerpt)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1070,10 +1069,7 @@ class _SourcesRow extends StatelessWidget {
               onTap: () => _show(context, s),
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: fg.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),

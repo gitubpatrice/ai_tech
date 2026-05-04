@@ -37,6 +37,11 @@ class ChatService {
 
   StreamController<String>? _activeStream;
 
+  /// Souscription au stream natif MediaPipe — gardée pour pouvoir
+  /// l'annuler explicitement et propager le cancel jusqu'au natif (sinon
+  /// la génération continue en arrière-plan, gaspillant CPU/RAM).
+  StreamSubscription<dynamic>? _activeNativeSub;
+
   bool get isLoaded => _chat != null;
   ModelFamily get family => _family;
 
@@ -97,16 +102,30 @@ class ChatService {
 
     Future<void> run() async {
       try {
-        final formatted =
-            ModelFamilyUtils.formatUserMessage(clipped, _family);
+        final formatted = ModelFamilyUtils.formatUserMessage(clipped, _family);
         await chat.addQueryChunk(Message.text(text: formatted, isUser: true));
-        await for (final response in chat.generateChatResponseAsync()) {
-          if (controller.isClosed) return;
-          if (response is TextResponse) {
-            controller.add(response.token);
-          }
-          // ThinkingResponse / FunctionCallResponse ignorés (mode chat simple).
-        }
+        // .listen() au lieu de `await for` : permet de cancel le souscripteur
+        // côté Dart, ce que la plupart des plugins propagent au générateur
+        // natif MediaPipe (vs await for qui ne peut être interrompu que par
+        // une exception ou la fin du stream).
+        final completer = Completer<void>();
+        _activeNativeSub = chat.generateChatResponseAsync().listen(
+          (response) {
+            if (controller.isClosed) return;
+            if (response is TextResponse) {
+              controller.add(response.token);
+            }
+            // ThinkingResponse / FunctionCallResponse ignorés (mode chat simple).
+          },
+          onError: (Object e, StackTrace st) {
+            if (!completer.isCompleted) completer.completeError(e, st);
+          },
+          onDone: () {
+            if (!completer.isCompleted) completer.complete();
+          },
+          cancelOnError: true,
+        );
+        await completer.future;
         if (!controller.isClosed) await controller.close();
       } catch (e, st) {
         if (!controller.isClosed) {
@@ -114,6 +133,8 @@ class ChatService {
           await controller.close();
         }
       } finally {
+        await _activeNativeSub?.cancel();
+        _activeNativeSub = null;
         if (identical(_activeStream, controller)) {
           _activeStream = null;
         }
@@ -127,7 +148,13 @@ class ChatService {
   /// Interrompt le stream en cours sans détruire la session.
   Future<void> cancelGeneration() async {
     final ctrl = _activeStream;
+    final sub = _activeNativeSub;
     _activeStream = null;
+    _activeNativeSub = null;
+    // 1. Cancel le souscripteur natif EN PREMIER : propage le cancel jusqu'au
+    //    générateur MediaPipe pour qu'il arrête vraiment de produire des tokens.
+    if (sub != null) await sub.cancel();
+    // 2. Ferme le controller exposé au consumer pour signaler la fin.
     if (ctrl != null && !ctrl.isClosed) {
       await ctrl.close();
     }
@@ -150,10 +177,14 @@ class ChatService {
     await cancelGeneration();
     try {
       await _chat?.session.close();
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
     try {
       await _model?.close();
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
     _chat = null;
     _model = null;
   }
@@ -161,8 +192,14 @@ class ChatService {
   Future<void> _injectSystemPrompt() async {
     final chat = _chat;
     if (chat == null) return;
-    final formatted =
-        ModelFamilyUtils.formatSystemPrompt(_systemPromptFr, _family);
-    await chat.addQueryChunk(Message.text(text: formatted, isUser: true));
+    final formatted = ModelFamilyUtils.formatSystemPrompt(
+      _systemPromptFr,
+      _family,
+    );
+    // isUser:false → le prompt système est traité comme un tour modèle/system,
+    // pas comme un message utilisateur. Renforce l'autorité du system prompt
+    // contre les attaques "ignore les instructions précédentes" qui exploitent
+    // un system prompt déguisé en user turn.
+    await chat.addQueryChunk(Message.text(text: formatted, isUser: false));
   }
 }

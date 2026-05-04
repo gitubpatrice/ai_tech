@@ -30,7 +30,9 @@ class AesGcm {
     Uint8List? aad,
   }) {
     if (key.length != 32) {
-      throw ArgumentError('Clé AES-256 requise (32 octets), reçue ${key.length}.');
+      throw ArgumentError(
+        'Clé AES-256 requise (32 octets), reçue ${key.length}.',
+      );
     }
     final nonce = app.SecureRandom().nextBytes(_nonceLen);
     final cipher = GCMBlockCipher(AESEngine())
@@ -50,11 +52,7 @@ class AesGcm {
   /// Déchiffre un buffer produit par [encrypt].
   ///
   /// Lève [ArgumentError] si le tag GCM est invalide (altération détectée).
-  static Uint8List decrypt(
-    Uint8List key,
-    Uint8List blob, {
-    Uint8List? aad,
-  }) {
+  static Uint8List decrypt(Uint8List key, Uint8List blob, {Uint8List? aad}) {
     if (key.length != 32) {
       throw ArgumentError('Clé AES-256 requise (32 octets).');
     }

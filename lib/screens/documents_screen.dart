@@ -88,9 +88,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       _snack('Le système n\'a pas fourni de chemin lisible.');
       return;
     }
-    final ext = name.contains('.')
-        ? name.split('.').last.toLowerCase()
-        : '';
+    final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
     if (!_allowedExt.contains(ext)) {
       _snack(
         'Format non supporté ($ext). Utilisez .txt, .md, .csv, '
@@ -296,8 +294,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     : ListView.separated(
                         padding: const EdgeInsets.only(bottom: 24),
                         itemCount: docs.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1),
+                        separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (_, i) => _DocTile(
                           doc: docs[i],
                           onDelete: () => _delete(docs[i]),
@@ -354,11 +351,7 @@ class _DocTile extends StatelessWidget {
     final theme = Theme.of(context);
     return ListTile(
       leading: const Icon(Icons.description_outlined),
-      title: Text(
-        doc.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: Text(doc.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '${_sizeLabel(doc.charCount)} · ${_relativeDate(doc.createdAt)}',
         style: theme.textTheme.bodySmall,
@@ -372,7 +365,8 @@ class _DocTile extends StatelessWidget {
   }
 
   static String _sizeLabel(int chars) {
-    if (chars >= 10000) return '${(chars / 1000).toStringAsFixed(1)} k caractères';
+    if (chars >= 10000)
+      return '${(chars / 1000).toStringAsFixed(1)} k caractères';
     return '$chars caractères';
   }
 
