@@ -33,6 +33,9 @@ dependencies:
   # UI
   share_plus: ^10.0.3
 
+  # Version de l'app — source unique depuis pubspec
+  package_info_plus: ^9.0.0
+
   # Clé de chiffrement persistée dans Android Keystore (chats chiffrés AES-GCM).
   flutter_secure_storage: ^9.2.2
 

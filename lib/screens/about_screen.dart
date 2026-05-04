@@ -1,15 +1,32 @@
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// Écran "À propos" : présentation de l'app, version, licences, support, légal.
 ///
 /// Utilise [LegalSupportSections] partagé entre toutes les apps Files Tech
 /// pour rester cohérent (mêmes liens contact, même rendu Markdown des PRIVACY
 /// et TERMS, mêmes garanties anti-XSS sur les schemes d'URL).
-class AboutScreen extends StatelessWidget {
-  const AboutScreen({super.key, this.appVersion = '0.3.0'});
+class AboutScreen extends StatefulWidget {
+  const AboutScreen({super.key});
 
-  final String appVersion;
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  /// Version lue depuis pubspec via package_info_plus — source unique pour
+  /// éviter qu'une string hardcodée ici et le pubspec divergent.
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (!mounted) return;
+      setState(() => _version = info.version);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +42,7 @@ class AboutScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Header(version: appVersion),
+              _Header(version: _version),
               const SizedBox(height: 24),
               _PromiseCard(),
               const SizedBox(height: 16),
@@ -33,7 +50,7 @@ class AboutScreen extends StatelessWidget {
               const SizedBox(height: 24),
               LegalSupportSections(
                 appName: 'AI Tech',
-                version: appVersion,
+                version: _version,
                 privacyAsset: 'assets/legal/PRIVACY.fr.md',
                 termsAsset: 'assets/legal/TERMS.fr.md',
               ),
