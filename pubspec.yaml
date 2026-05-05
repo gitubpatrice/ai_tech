@@ -1,7 +1,7 @@
 name: ai_tech
 description: "Assistant IA 100% on-device — Files Tech"
 publish_to: 'none'
-version: 0.4.0+1
+version: 0.4.1+2
 
 environment:
   sdk: ^3.11.5
