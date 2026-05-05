@@ -109,81 +109,90 @@ class _WelcomeStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Spacer(flex: 1),
-          Center(
-            child: Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Icon(
-                Icons.smart_toy_outlined,
-                color: cs.onPrimaryContainer,
-                size: 56,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+            child: IntrinsicHeight(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Spacer(flex: 1),
+                  Center(
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        color: cs.primaryContainer,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Icon(
+                        Icons.smart_toy_outlined,
+                        color: cs.onPrimaryContainer,
+                        size: 56,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Bienvenue dans AI Tech',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Un assistant IA qui tourne entièrement sur votre téléphone.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 28),
+                  const _Feature(
+                    icon: Icons.cloud_off_outlined,
+                    title: '100 % hors-ligne',
+                    text:
+                        'Aucune connexion Internet. L\'app n\'a même pas la '
+                        'permission d\'en faire.',
+                  ),
+                  const _Feature(
+                    icon: Icons.lock_outline,
+                    title: 'Conversations chiffrées',
+                    text: 'AES-256-GCM avec clé dans le Android Keystore.',
+                  ),
+                  const _Feature(
+                    icon: Icons.local_fire_department_outlined,
+                    title: 'Mode panique',
+                    text: 'Efface clé et historique en un appui. Définitif.',
+                  ),
+                  const _Feature(
+                    icon: Icons.code,
+                    title: 'Code source ouvert',
+                    text: 'Apache 2.0. Vérifiez vous-même nos promesses.',
+                  ),
+                  const Spacer(flex: 2),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: onContinue,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    child: const Text('Continuer'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AboutScreen()),
+                    ),
+                    child: const Text('À propos · Confidentialité'),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Bienvenue dans AI Tech',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Un assistant IA qui tourne entièrement sur votre téléphone.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 28),
-          const _Feature(
-            icon: Icons.cloud_off_outlined,
-            title: '100 % hors-ligne',
-            text:
-                'Aucune connexion Internet. L\'app n\'a même pas la '
-                'permission d\'en faire.',
-          ),
-          const _Feature(
-            icon: Icons.lock_outline,
-            title: 'Conversations chiffrées',
-            text: 'AES-256-GCM avec clé dans le Android Keystore.',
-          ),
-          const _Feature(
-            icon: Icons.local_fire_department_outlined,
-            title: 'Mode panique',
-            text: 'Efface clé et historique en un appui. Définitif.',
-          ),
-          const _Feature(
-            icon: Icons.code,
-            title: 'Code source ouvert',
-            text: 'Apache 2.0. Vérifiez vous-même nos promesses.',
-          ),
-          const Spacer(flex: 2),
-          FilledButton(
-            onPressed: onContinue,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-            ),
-            child: const Text('Continuer'),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
-            child: const Text('À propos · Confidentialité'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -203,93 +212,102 @@ class _ImportStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: busy ? null : onBack,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Retour'),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: Icon(
-              Icons.upload_file_outlined,
-              size: 72,
-              color: cs.primary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Choisir un modèle',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Téléchargez un modèle au format .task ou .litertlm '
-            '(Gemma, Qwen, Phi, Llama…) puis sélectionnez-le ici.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Card(
-            color: cs.surfaceContainerHighest,
-            child: const Padding(
-              padding: EdgeInsets.all(16),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+            child: IntrinsicHeight(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Recommandation',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: busy ? null : onBack,
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Retour'),
+                    ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Gemma 3 1B (int4) — 554 Mo, excellent en français, '
-                    'très rapide même sur téléphones milieu de gamme.',
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Icon(
+                      Icons.upload_file_outlined,
+                      size: 72,
+                      color: cs.primary,
+                    ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   Text(
-                    'Source : Kaggle → google/gemma-3 → tfLite → '
-                    'gemma3-1b-it-int4',
-                    style: TextStyle(fontStyle: FontStyle.italic),
+                    'Choisir un modèle',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Téléchargez un modèle au format .task ou .litertlm '
+                    '(Gemma, Qwen, Phi, Llama…) puis sélectionnez-le ici.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  Card(
+                    color: cs.surfaceContainerHighest,
+                    child: const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Recommandation',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Gemma 3 1B (int4) — 554 Mo, excellent en français, '
+                            'très rapide même sur téléphones milieu de gamme.',
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Source : Kaggle → google/gemma-3 → tfLite → '
+                            'gemma3-1b-it-int4',
+                            style: TextStyle(fontStyle: FontStyle.italic),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: busy ? null : onPick,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    icon: busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.upload_file),
+                    label:
+                        Text(busy ? 'Enregistrement…' : 'Sélectionner un modèle'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AboutScreen()),
+                    ),
+                    child: const Text('À propos · Confidentialité'),
                   ),
                 ],
               ),
             ),
           ),
-          const Spacer(),
-          FilledButton.icon(
-            onPressed: busy ? null : onPick,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-            ),
-            icon: busy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.upload_file),
-            label: Text(busy ? 'Enregistrement…' : 'Sélectionner un modèle'),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
-            child: const Text('À propos · Confidentialité'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
