@@ -1,7 +1,7 @@
 name: ai_tech
 description: "Assistant IA 100% on-device — Files Tech"
 publish_to: 'none'
-version: 0.4.4+5
+version: 0.4.5+6
 
 environment:
   sdk: ^3.11.5
@@ -37,7 +37,7 @@ dependencies:
   package_info_plus: ^9.0.0
 
   # Clé de chiffrement persistée dans Android Keystore (chats chiffrés AES-GCM).
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^10.0.0
 
   # Pages légales et liens utiles (utilisés par AboutScreen via files_tech_core).
   flutter_markdown: ^0.7.4
