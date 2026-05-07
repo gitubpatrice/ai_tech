@@ -177,30 +177,34 @@ class RagService {
     // - Gemma : <start_of_turn>, <end_of_turn>, <bos>, <eos>
     // - Tour Gemma déguisé : "\nuser\n" / "\nmodel\n" en délimiteur
     // - Instructions impératives en début de ligne (### System, etc.)
+    // [\r\n] couvre LF, CR (legacy Mac) et CRLF — pas seulement \n.
     final patterns = <RegExp>[
       RegExp(r'\[\s*INST\s*\]', caseSensitive: false),
       RegExp(r'\[\s*/\s*INST\s*\]', caseSensitive: false),
+      // <|im_start|>, <|im_end|>, <|system|>, <|user|>, etc.
       RegExp(r'<\|\s*[a-z_]+\s*\|>', caseSensitive: false),
-      RegExp(r'<\|im_(start|end)\|>', caseSensitive: false),
       RegExp(r'<(start_of_turn|end_of_turn|bos|eos)>', caseSensitive: false),
-      RegExp(r'\n\s*(user|model|system|assistant)\s*\n', caseSensitive: false),
       RegExp(
-        r'(^|\n)\s*###\s+(System|Instruction|Réponse|Nouvelle\s+instruction)',
+        r'[\r\n]\s*(user|model|system|assistant)\s*[\r\n]',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(^|[\r\n])\s*###\s+(System|Instruction|Réponse|Nouvelle\s+instruction)',
         caseSensitive: false,
       ),
       // Injections en français/anglais en début de ligne : "Tu es maintenant…",
       // "You are now…", "System:", "Assistant:", "Ignore previous instructions"
       RegExp(
-        r'(^|\n)\s*Tu\s+es\s+(maintenant|désormais|à\s+présent)\b',
+        r'(^|[\r\n])\s*Tu\s+es\s+(maintenant|désormais|à\s+présent)\b',
         caseSensitive: false,
       ),
       RegExp(
-        r'(^|\n)\s*You\s+are\s+(now|from\s+now\s+on)\b',
+        r'(^|[\r\n])\s*You\s+are\s+(now|from\s+now\s+on)\b',
         caseSensitive: false,
       ),
-      RegExp(r'(^|\n)\s*(System|Assistant)\s*:', caseSensitive: false),
+      RegExp(r'(^|[\r\n])\s*(System|Assistant)\s*:', caseSensitive: false),
       RegExp(
-        r'(^|\n)\s*Ignore\s+(previous|all|toutes?\s+les?)\s+instructions?',
+        r'(^|[\r\n])\s*Ignore\s+(previous|all|toutes?\s+les?)\s+instructions?',
         caseSensitive: false,
       ),
     ];

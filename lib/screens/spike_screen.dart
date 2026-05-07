@@ -40,7 +40,9 @@ class _SpikeScreenState extends State<SpikeScreen> {
   @override
   void dispose() {
     _promptCtrl.dispose();
-    _llm.dispose();
+    // Pas de _llm.dispose() ici : le PopScope gère déjà la libération du
+    // handle natif via onPopInvokedWithResult. Double-dispose était fragile
+    // (idempotent best-effort mais sémantique trompeuse).
     super.dispose();
   }
 
