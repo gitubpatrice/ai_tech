@@ -1,4 +1,5 @@
 import 'package:files_tech_core/files_tech_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -22,10 +23,23 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   void initState() {
     super.initState();
-    PackageInfo.fromPlatform().then((info) {
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    // Try/catch défensif : sur certains devices (modes particuliers,
+    // installations corrompues), `PackageInfo.fromPlatform()` peut throw
+    // un PlatformException. On dégrade proprement plutôt que de laisser
+    // l'écran "À propos" planter au démarrage.
+    try {
+      final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
       setState(() => _version = info.version);
-    });
+    } catch (e) {
+      if (kDebugMode) debugPrint('about: PackageInfo failed: $e');
+      if (!mounted) return;
+      setState(() => _version = '?.?.?');
+    }
   }
 
   @override

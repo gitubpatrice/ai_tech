@@ -22,17 +22,33 @@ Future<void> main() async {
 class AiTechApp extends StatefulWidget {
   const AiTechApp({super.key});
 
+  /// Exposé pour permettre au mode panique (cf. `SettingsScreen._triggerPanic`)
+  /// de forcer une re-évaluation du flag `firstLaunchCompleted` après wipe —
+  /// sinon le `popUntil` + `pushReplacementNamed('/')` ré-affiche le
+  /// `FutureBuilder` mais avec l'ancien `_firstLaunchDone` (true) et zappe
+  /// l'onboarding qui devrait pourtant ré-apparaître.
+  static void refreshFirstLaunch() => _AiTechAppState._instance?._refresh();
+
   @override
   State<AiTechApp> createState() => _AiTechAppState();
 }
 
 class _AiTechAppState extends State<AiTechApp> {
+  static _AiTechAppState? _instance;
+
   Future<bool>? _firstLaunchDone;
 
   @override
   void initState() {
     super.initState();
+    _instance = this;
     _firstLaunchDone = _checkFirstLaunch();
+  }
+
+  @override
+  void dispose() {
+    if (identical(_instance, this)) _instance = null;
+    super.dispose();
   }
 
   Future<bool> _checkFirstLaunch() async {

@@ -42,8 +42,22 @@ class ChatService {
   /// la génération continue en arrière-plan, gaspillant CPU/RAM).
   StreamSubscription<dynamic>? _activeNativeSub;
 
+  /// Paramètres du dernier `installAndLoad` réussi — utilisés par
+  /// [ensureLoaded] pour reload paresseux après un [unloadModel] (cas où
+  /// l'utilisateur revient de SpikeScreen et le handle natif a été libéré).
+  String? _lastModelPath;
+  ModelFamily _lastFamily = ModelFamily.gemma;
+  int _lastMaxTokens = 1024;
+  double _lastTemperature = 0.7;
+  int _lastTopK = 40;
+  PreferredBackend? _lastBackend;
+
   bool get isLoaded => _chat != null;
   ModelFamily get family => _family;
+
+  /// True si on a déjà chargé un modèle au moins une fois (les paramètres
+  /// sont mémorisés et [ensureLoaded] peut le re-charger).
+  bool get canReload => _lastModelPath != null;
 
   Future<void> installAndLoad(
     String path, {
@@ -64,6 +78,16 @@ class ChatService {
     _family = family == ModelFamily.auto
         ? ModelFamilyUtils.detectFamily(path)
         : family;
+
+    // Mémorise les paramètres pour permettre à [ensureLoaded] de rebuild la
+    // session après un [unloadModel] (cession du handle natif au LlmService
+    // du SpikeScreen, par ex.).
+    _lastModelPath = path;
+    _lastFamily = _family;
+    _lastMaxTokens = maxTokens;
+    _lastTemperature = temperature;
+    _lastTopK = topK;
+    _lastBackend = backend;
 
     await _disposeInternal();
 
@@ -171,6 +195,48 @@ class ChatService {
 
   Future<void> dispose() async {
     await _disposeInternal();
+  }
+
+  /// Libère le handle natif MediaPipe (model + chat) tout en gardant en
+  /// mémoire les paramètres du dernier `installAndLoad` afin que la prochaine
+  /// utilisation puisse recharger via [ensureLoaded].
+  ///
+  /// Utilisé pour éviter le conflit de session quand `LlmService` (SpikeScreen)
+  /// veut prendre le contrôle du modèle natif global (`getActiveModel`). Un
+  /// seul propriétaire du handle natif à la fois — sinon dispose en cascade
+  /// laisse l'autre service avec un handle fermé.
+  ///
+  /// Idempotent : ne fait rien si rien n'est chargé.
+  Future<void> unloadModel() async {
+    if (_chat == null && _model == null) return;
+    await _disposeInternal();
+  }
+
+  /// Recharge le modèle si on l'a déjà chargé une fois mais qu'il a depuis
+  /// été libéré (typiquement par [unloadModel] avant une session SpikeScreen).
+  ///
+  /// No-op si déjà chargé. Renvoie `false` si aucun modèle n'a jamais été
+  /// chargé (ce sera à l'appelant — typiquement ChatScreen — d'appeler
+  /// [installAndLoad] avec un chemin explicite).
+  Future<bool> ensureLoaded() async {
+    if (_chat != null) return true;
+    final path = _lastModelPath;
+    if (path == null) return false;
+    // Vérifie que le fichier existe encore — l'utilisateur peut l'avoir
+    // supprimé entre temps.
+    if (!await File(path).exists()) {
+      _lastModelPath = null;
+      return false;
+    }
+    await installAndLoad(
+      path,
+      family: _lastFamily,
+      maxTokens: _lastMaxTokens,
+      temperature: _lastTemperature,
+      topK: _lastTopK,
+      backend: _lastBackend,
+    );
+    return _chat != null;
   }
 
   Future<void> _disposeInternal() async {

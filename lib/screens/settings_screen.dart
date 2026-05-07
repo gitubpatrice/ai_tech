@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../main.dart';
 import '../models/app_settings.dart';
 import '../models/model_entry.dart';
 import '../services/chat_service.dart';
@@ -137,6 +138,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _busy = true);
     await PanicService.instance.trigger();
     if (!mounted) return;
+    // Force la re-évaluation de `firstLaunchCompleted` AVANT de remplacer
+    // la route. Sans ça, `_AiTechAppState._firstLaunchDone` resterait à
+    // `true` (cache du `Future`) et l'utilisateur retomberait directement
+    // sur `ChatScreen` au lieu de l'onboarding pourtant attendu après wipe.
+    AiTechApp.refreshFirstLaunch();
     // Rentre dans le pop pour relancer l'onboarding au prochain démarrage.
     Navigator.of(context).popUntil((r) => r.isFirst);
     Navigator.of(context).pushReplacementNamed('/');

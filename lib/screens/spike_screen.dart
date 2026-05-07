@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/bench_result.dart';
 import '../services/bench_service.dart';
+import '../services/chat_service.dart';
 import '../services/llm_service.dart';
 
 /// Écran de spike technique pour AI Tech.
@@ -64,6 +65,14 @@ class _SpikeScreenState extends State<SpikeScreen> {
     });
 
     try {
+      // CRITIQUE : `LlmService.load()` et `ChatService.installAndLoad()`
+      // appellent tous deux `FlutterGemma.getActiveModel()` qui pointe sur le
+      // même handle natif global. Si Chat a chargé un modèle puis l'utilisateur
+      // ouvre Spike, il faut libérer le handle côté Chat avant que Spike ne
+      // crée le sien — sinon `_llm.dispose()` plus tard fermerait un handle que
+      // ChatService.instance pense toujours posséder. ChatService recharge
+      // paresseusement (ensureLoaded) au retour dans ChatScreen.
+      await ChatService.instance.unloadModel();
       await _llm.installFromFile(path);
       _setStatus('Chargement en mémoire (peut prendre 10–20 s)…');
       await _llm.load();

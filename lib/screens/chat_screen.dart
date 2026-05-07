@@ -473,6 +473,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     setState(() {});
   }
 
+  /// Au retour du SpikeScreen, le handle natif MediaPipe a été détruit par
+  /// `LlmService.dispose()`. ChatService a été déchargé volontairement avant
+  /// l'entrée dans Spike (cf. `SpikeScreen._pickAndLoad`). On recharge
+  /// paresseusement avec les paramètres mémorisés. Robuste si l'utilisateur
+  /// n'a jamais lancé Spike (ensureLoaded est no-op).
+  Future<void> _reloadChatAfterSpike() async {
+    if (!mounted) return;
+    if (_activeModel == null) return; // rien à recharger
+    if (_chat.isLoaded) return; // toujours en place (Spike n'a pas chargé)
+    setState(() => _modelLoading = true);
+    try {
+      final ok = await _chat.ensureLoaded();
+      if (!ok && mounted) {
+        // ensureLoaded peut échouer si le fichier modèle a disparu
+        // entre-temps. On bascule sur installAndLoad explicite.
+        await _loadActiveModel(_activeModel!, _settings);
+        return;
+      }
+    } catch (e) {
+      if (mounted) setState(() => _bootError = '$e');
+    } finally {
+      if (mounted) setState(() => _modelLoading = false);
+    }
+  }
+
   void _persistIfNeeded() {
     final hasContent = _session.messages.any((m) => !m.pending);
     if (!hasContent) return;
@@ -556,9 +581,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   );
                   break;
                 case 'spike':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SpikeScreen()),
-                  );
+                  // SpikeScreen prend le contrôle exclusif du handle natif
+                  // MediaPipe via LlmService. Au retour, on recharge
+                  // paresseusement le ChatService si besoin (cf. _onReturn).
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (_) => const SpikeScreen(),
+                        ),
+                      )
+                      .then((_) => _reloadChatAfterSpike());
                   break;
               }
             },

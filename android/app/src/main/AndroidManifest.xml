@@ -16,6 +16,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false"
         android:largeHeap="true">
         <activity
@@ -39,6 +40,22 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!--
+          flutter_gemma / MediaPipe : OpenCL natif pour accélération GPU.
+          `required="false"` → app fonctionne sans (CPU fallback).
+          Sans ces déclarations, Samsung Auto Blocker / certains OEM peuvent
+          empêcher le chargement de libOpenCL au runtime même si la lib existe.
+        -->
+        <uses-native-library
+            android:name="libOpenCL.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libOpenCL-car.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libOpenCL-pixel.so"
+            android:required="false" />
     </application>
     <queries>
         <intent>
