@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
 
 import '../models/bench_result.dart';
@@ -124,7 +125,21 @@ class _SpikeScreenState extends State<SpikeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
+    return PopScope(
+      // Pendant `_pickAndLoad`, on bloque le retour : un dispose en plein
+      // milieu de `_llm.load()` peut laisser un handle MediaPipe natif
+      // intermédiaire (modèle installé, session pas encore créée), et
+      // déstabiliser le ChatService global qui re-crée son handle plus
+      // tard. Une fois `_loading=false`, l'utilisateur peut sortir
+      // librement et `dispose()` libère proprement le handle natif.
+      canPop: !_loading,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _llm.dispose();
+        if (!context.mounted) return;
+        Navigator.pop(context);
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('AI Tech — Spike'),
         backgroundColor: theme.colorScheme.inversePrimary,
@@ -179,6 +194,7 @@ class _SpikeScreenState extends State<SpikeScreen> {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -218,7 +234,7 @@ class _ModelCard extends StatelessWidget {
                   child: Text(
                     modelPath == null
                         ? 'Aucun modèle sélectionné'
-                        : modelPath!.split('/').last,
+                        : PathUtils.fileName(modelPath!),
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium,
                   ),

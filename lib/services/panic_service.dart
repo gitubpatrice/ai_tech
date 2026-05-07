@@ -2,7 +2,6 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 
 import 'chat_service.dart';
 import 'crypto/secret_key.dart';
-import 'model_settings.dart';
 import 'rag/rag_service.dart';
 import 'storage/app_settings_store.dart';
 import 'storage/document_store.dart';
@@ -21,8 +20,7 @@ import 'storage/model_registry.dart';
 ///   5. Vide le registre de modèles (mais garde les fichiers `.task` sur sdcard,
 ///      qui appartiennent à l'utilisateur).
 ///   6. Reset les paramètres applicatifs.
-///   7. Reset `ModelSettings` legacy.
-///   8. Supprime la clé AES du Keystore : tout chat oublié devient
+///   7. Supprime la clé AES du Keystore : tout chat oublié devient
 ///      définitivement illisible, même par récupération forensique.
 ///
 /// L'opération n'est PAS confirmée par cette classe : c'est à l'UI d'afficher
@@ -51,7 +49,7 @@ class PanicService {
       /* on continue */
     }
 
-    // 3, 4, 5, 6, 7. Wipe stockages — chaque échec n'arrête pas la suite.
+    // 3, 4, 5, 6. Wipe stockages — chaque échec n'arrête pas la suite.
     final wipes = <Future<void> Function()>[
       // RagService.wipeAll efface l'index RAM ET les .aidoc chiffrés.
       RagService.instance.wipeAll,
@@ -61,7 +59,6 @@ class PanicService {
       EncryptedChatStore.instance.deleteAll,
       ModelRegistry.instance.wipe,
       AppSettingsStore.instance.wipe,
-      ModelSettings().clearModelPath,
     ];
     for (final w in wipes) {
       try {
@@ -71,7 +68,7 @@ class PanicService {
       }
     }
 
-    // 8. Clé AES en dernier — sans elle, plus rien ne peut être déchiffré
+    // 7. Clé AES en dernier — sans elle, plus rien ne peut être déchiffré
     //    même si une copie d'un .aichat traîne.
     try {
       await SecretKey.instance.wipe();

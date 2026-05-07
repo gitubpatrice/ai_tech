@@ -22,6 +22,19 @@ class ModelFamilyUtils {
     return ModelFamily.gemma;
   }
 
+  /// Détecte la famille et renvoie son nom (string court, ex. `'gemma'`).
+  /// Centralise la logique partagée entre `SettingsScreen`, `OnboardingScreen`
+  /// et `ModelRegistry.register()`.
+  static String detectFamilyName(String path) => detectFamily(path).name;
+
+  /// Nom affichable d'un modèle à partir de son path. Retire le séparateur
+  /// de path (Windows ou Unix) et l'extension `.task` / `.litertlm`.
+  /// Source unique de vérité pour `SettingsScreen` + `OnboardingScreen`.
+  static String displayNameOf(String path) {
+    final base = path.split(RegExp(r'[\\/]')).last;
+    return base.replaceAll(RegExp(r'\.(task|litertlm)$'), '');
+  }
+
   /// Détecte le format de fichier d'après l'extension.
   static ModelFileType detectFileType(String path) {
     return path.toLowerCase().endsWith('.litertlm')

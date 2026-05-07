@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -107,7 +108,7 @@ class ModelInstaller {
       tmp.deleteSync();
     }
 
-    final digestSink = _DigestSink();
+    final digestSink = AccumulatorSink<Digest>();
     final hashSink = sha256.startChunkedConversion(digestSink);
     final input = source.openRead();
     final output = tmp.openWrite();
@@ -145,7 +146,7 @@ class ModelInstaller {
       rethrow;
     }
 
-    final hashHex = digestSink.value.toString().toLowerCase();
+    final hashHex = digestSink.events.single.toString().toLowerCase();
 
     // Rename atomique. Si la destination existe déjà (réinstallation du
     // même fichier), on l'écrase.
@@ -190,19 +191,3 @@ class ModelInstaller {
   }
 }
 
-/// Sink one-shot pour récupérer le `Digest` final d'un
-/// `sha256.startChunkedConversion`.
-class _DigestSink implements Sink<Digest> {
-  Digest? _value;
-  @override
-  void add(Digest data) => _value = data;
-  @override
-  void close() {}
-  Digest get value {
-    final v = _value;
-    if (v == null) {
-      throw StateError('Hash non calculé : sink fermé sans données.');
-    }
-    return v;
-  }
-}

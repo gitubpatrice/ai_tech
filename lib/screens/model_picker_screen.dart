@@ -6,7 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/model_limits.dart';
 import '../services/storage/model_installer.dart';
+
+/// Résultat d'un import de modèle : path final dans le sandbox + SHA-256
+/// calculé pendant la copie streaming. Permet à l'appelant de persister le
+/// hash dans `ModelRegistry` pour vérification ultérieure.
+typedef PickedModel = ({String path, String? sha256});
 
 /// Picker pour les modèles `.task` / `.litertlm`.
 ///
@@ -33,9 +39,9 @@ class ModelPickerScreen extends StatelessWidget {
   static const _hfUrl =
       'https://huggingface.co/litert-community/Gemma3-1B-IT';
 
-  /// Renvoie le chemin choisi, ou null si l'utilisateur annule.
-  static Future<String?> pick(BuildContext context) {
-    return Navigator.of(context).push<String>(
+  /// Renvoie le résultat (path + sha256) ou null si l'utilisateur annule.
+  static Future<PickedModel?> pick(BuildContext context) {
+    return Navigator.of(context).push<PickedModel>(
       MaterialPageRoute(builder: (_) => const ModelPickerScreen()),
     );
   }
@@ -159,7 +165,7 @@ class ModelPickerScreen extends StatelessWidget {
       if (context.mounted) snack('Fichier introuvable.');
       return;
     }
-    if (await f.length() < 50 * 1024 * 1024) {
+    if (await f.length() < ModelLimits.minModelBytes) {
       if (context.mounted) snack('Fichier trop petit pour être un modèle.');
       return;
     }
@@ -198,14 +204,14 @@ class ModelPickerScreen extends StatelessWidget {
 
   /// Affiche un dialog modal avec progression pendant la copie en sandbox,
   /// puis un récapitulatif avec le SHA-256 (copiable). Renvoie le path
-  /// final dans le sandbox, ou `null` si l'utilisateur a annulé / une
-  /// erreur est survenue (snack déjà émis dans ce cas).
-  Future<String?> _installToSandbox(
+  /// final dans le sandbox + le hash, ou `null` si l'utilisateur a
+  /// annulé / une erreur est survenue (snack déjà émis dans ce cas).
+  Future<PickedModel?> _installToSandbox(
     BuildContext context, {
     required String sourcePath,
     required String filename,
   }) async {
-    final completer = Completer<String?>();
+    final completer = Completer<PickedModel?>();
 
     // Lance la copie en arrière-plan dès l'ouverture du dialog.
     showDialog<void>(
@@ -215,8 +221,8 @@ class ModelPickerScreen extends StatelessWidget {
         return _InstallProgressDialog(
           sourcePath: sourcePath,
           filename: filename,
-          onDone: (finalPath) {
-            if (!completer.isCompleted) completer.complete(finalPath);
+          onDone: (result) {
+            if (!completer.isCompleted) completer.complete(result);
           },
         );
       },
@@ -408,9 +414,10 @@ class _InstallProgressDialog extends StatefulWidget {
   final String filename;
 
   /// Appelé une seule fois avec :
-  ///   - le path sandbox final si tout va bien et l'utilisateur a validé,
+  ///   - le résultat (path sandbox + sha256) si tout va bien et
+  ///     l'utilisateur a validé,
   ///   - `null` si annulation ou erreur (snack déjà affiché par le picker).
-  final void Function(String? finalPath) onDone;
+  final void Function(PickedModel? result) onDone;
 
   @override
   State<_InstallProgressDialog> createState() => _InstallProgressDialogState();
@@ -469,11 +476,11 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
   String _fmtMo(int bytes) =>
       '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
 
-  void _finish(String? path) {
+  void _finish(PickedModel? result) {
     if (_completed) return;
     _completed = true;
     Navigator.of(context).pop();
-    widget.onDone(path);
+    widget.onDone(result);
   }
 
   @override
@@ -582,7 +589,11 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
           )
         else
           FilledButton(
-            onPressed: () => _finish(_finalPath),
+            onPressed: () => _finish(
+              _finalPath == null
+                  ? null
+                  : (path: _finalPath!, sha256: _sha256),
+            ),
             child: const Text('Continuer'),
           ),
       ],

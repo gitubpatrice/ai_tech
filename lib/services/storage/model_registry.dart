@@ -44,11 +44,16 @@ class ModelRegistry {
   }
 
   /// Ajoute (ou met à jour) un modèle. Renvoie l'entrée enregistrée.
+  ///
+  /// Si [sha256] est fourni, il est persisté ; sinon l'entrée garde
+  /// `sha256 == null` (cas des modèles ajoutés sans passer par
+  /// `ModelInstaller.installFromSafFile`).
   Future<ModelEntry> register({
     required String path,
     required String displayName,
     required String family,
     required String fileType,
+    String? sha256,
   }) async {
     final file = File(path);
     final size = await file.exists() ? await file.length() : 0;
@@ -59,6 +64,7 @@ class ModelRegistry {
       family: family,
       fileType: fileType,
       sizeBytes: size,
+      sha256: sha256,
     );
     final all = await loadAndPrune();
     all.removeWhere((e) => e.id == entry.id);

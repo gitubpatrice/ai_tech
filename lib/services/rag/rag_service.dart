@@ -40,7 +40,7 @@ class RagService {
       ..addAll(docs);
     await _indexer.clear();
     for (final d in docs) {
-      await _indexer.index(_asDoc(d));
+      await _indexer.index(d);
     }
     _booted = true;
   }
@@ -61,7 +61,7 @@ class RagService {
     );
     await DocumentStore.instance.save(doc);
     _documents.insert(0, doc);
-    await _indexer.index(_asDoc(doc));
+    await _indexer.index(doc);
     return doc;
   }
 
@@ -195,12 +195,6 @@ class RagService {
     return clipped;
   }
 
-  static RagDocument _asDoc(RagDocument d) {
-    // L'indexeur consomme un RagDocument avec ses chunks. Comme les chunks
-    // sont calculés à la volée et non persistés, on retourne un nouveau
-    // RagDocument enrichi via une extension interne.
-    return d;
-  }
 }
 
 /// Résultat de l'augmentation du prompt.

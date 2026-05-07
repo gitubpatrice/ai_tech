@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 
@@ -95,7 +96,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       _snack('Le système n\'a pas fourni de chemin lisible.');
       return;
     }
-    final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
+    final ext = PathUtils.fileExt(name);
     if (!_allowedExt.contains(ext)) {
       _snack(
         'Format non supporté ($ext). Utilisez .txt, .md, .csv, '

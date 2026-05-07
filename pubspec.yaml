@@ -1,7 +1,7 @@
 name: ai_tech
 description: "Assistant IA 100% on-device — Files Tech"
 publish_to: 'none'
-version: 0.4.6+7
+version: 0.5.0+8
 
 environment:
   sdk: ^3.11.5
@@ -12,7 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # Code partagé Files Tech (RecentFiles, UpdateService, CloudShareRow,
-  # LegalSupportSections, FormatUtils, PathSafe).
+  # LegalSupportSections, FormatUtils, PathSafe, PathUtils 0.3.0+).
   files_tech_core:
     path: ../files_tech_core
 
@@ -29,6 +29,9 @@ dependencies:
   shared_preferences: ^2.3.2
   pointycastle: ^3.9.1
   crypto: ^3.0.3
+  # AccumulatorSink<Digest> pour le calcul SHA-256 streaming dans
+  # `ModelInstaller`.
+  convert: ^3.1.1
 
   # UI
   share_plus: ^10.0.3

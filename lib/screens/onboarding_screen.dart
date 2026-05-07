@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/model_family.dart';
 import '../services/storage/app_settings_store.dart';
 import '../services/storage/model_registry.dart';
 import 'about_screen.dart';
@@ -29,17 +30,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _pickAndFinish() async {
     if (_busy) return;
-    final path = await ModelPickerScreen.pick(context);
-    if (path == null || !mounted) return;
+    final picked = await ModelPickerScreen.pick(context);
+    if (picked == null || !mounted) return;
+    final path = picked.path;
     final lower = path.toLowerCase();
 
     setState(() => _busy = true);
     try {
       final entry = await ModelRegistry.instance.register(
         path: path,
-        displayName: _displayNameOf(path),
-        family: _detectFamily(path),
+        displayName: ModelFamilyUtils.displayNameOf(path),
+        family: ModelFamilyUtils.detectFamilyName(path),
         fileType: lower.endsWith('.litertlm') ? 'litertlm' : 'task',
+        sha256: picked.sha256,
       );
       final current = await AppSettingsStore.instance.load();
       await AppSettingsStore.instance.save(
@@ -59,21 +62,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
     );
-  }
-
-  String _displayNameOf(String path) {
-    final base = path.split(RegExp(r'[\\/]')).last;
-    return base.replaceAll(RegExp(r'\.(task|litertlm)$'), '');
-  }
-
-  String _detectFamily(String path) {
-    final p = path.toLowerCase();
-    if (p.contains('gemma')) return 'gemma';
-    if (p.contains('qwen')) return 'qwen';
-    if (p.contains('phi')) return 'phi';
-    if (p.contains('llama')) return 'llama';
-    if (p.contains('deepseek')) return 'deepseek';
-    return 'gemma';
   }
 
   @override

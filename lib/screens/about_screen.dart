@@ -202,6 +202,14 @@ class _HowItWorksCard extends StatelessWidget {
               'dans l\'application. Aucune donnée n\'est envoyée à l\'éditeur '
               'du modèle ni à un service tiers.',
             ),
+            const SizedBox(height: 12),
+            const Text(
+              'Mises à jour : AI Tech ne contacte aucun serveur de mise à '
+              'jour, contrairement aux autres apps Files Tech, par cohérence '
+              'avec la promesse offline. Les nouvelles versions sont '
+              'publiées sur GitHub Releases et F-Droid — vous décidez quand '
+              'mettre à jour.',
+            ),
           ],
         ),
       ),

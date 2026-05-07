@@ -1,8 +1,13 @@
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../main.dart';
 import '../models/app_settings.dart';
 import '../models/model_entry.dart';
+import '../models/model_family.dart';
 import '../services/chat_service.dart';
 import '../services/panic_service.dart';
 import '../services/storage/app_settings_store.dart';
@@ -51,18 +56,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _addModel() async {
     if (_busy) return;
-    final path = await ModelPickerScreen.pick(context);
-    if (path == null || !mounted) return;
+    final picked = await ModelPickerScreen.pick(context);
+    if (picked == null || !mounted) return;
+    final path = picked.path;
     final lower = path.toLowerCase();
     setState(() => _busy = true);
     try {
-      final family = _detectFamily(path);
+      final family = ModelFamilyUtils.detectFamilyName(path);
       final fileType = lower.endsWith('.litertlm') ? 'litertlm' : 'task';
       final entry = await ModelRegistry.instance.register(
         path: path,
-        displayName: _displayNameOf(path),
+        displayName: ModelFamilyUtils.displayNameOf(path),
         family: family,
         fileType: fileType,
+        sha256: picked.sha256,
       );
       // Si c'est le premier, le rendre actif.
       if (_settings?.activeModelId == null) {
@@ -186,21 +193,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  String _displayNameOf(String path) {
-    final base = path.split(RegExp(r'[\\/]')).last;
-    return base.replaceAll(RegExp(r'\.(task|litertlm)$'), '');
-  }
-
-  String _detectFamily(String path) {
-    final p = path.toLowerCase();
-    if (p.contains('gemma')) return 'gemma';
-    if (p.contains('qwen')) return 'qwen';
-    if (p.contains('phi')) return 'phi';
-    if (p.contains('llama')) return 'llama';
-    if (p.contains('deepseek')) return 'deepseek';
-    return 'gemma';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -227,6 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       isActive: s.activeModelId == m.id,
                       onSetActive: () => _setActive(m),
                       onRemove: () => _removeModel(m),
+                      onVerified: _load,
                     ),
                   ),
                   ListTile(
@@ -341,37 +334,182 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _ModelTile extends StatelessWidget {
+class _ModelTile extends StatefulWidget {
   const _ModelTile({
     required this.entry,
     required this.isActive,
     required this.onSetActive,
     required this.onRemove,
+    required this.onVerified,
   });
   final ModelEntry entry;
   final bool isActive;
   final VoidCallback onSetActive;
   final VoidCallback onRemove;
 
+  /// Callback déclenché après un re-calcul SHA-256 réussi (pour reload UI).
+  final VoidCallback onVerified;
+
+  @override
+  State<_ModelTile> createState() => _ModelTileState();
+}
+
+class _ModelTileState extends State<_ModelTile> {
+  bool _verifying = false;
+
+  Future<void> _verify() async {
+    if (_verifying) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _verifying = true);
+    try {
+      final file = File(widget.entry.path);
+      if (!await file.exists()) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Fichier introuvable.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      // Calcule en streaming (pas de chargement complet en RAM).
+      final digest = await sha256.bind(file.openRead()).first;
+      final hex = digest.toString().toLowerCase();
+      if (!mounted) return;
+      final stored = widget.entry.sha256;
+      if (stored == null) {
+        // Première vérification : on persiste le hash recalculé.
+        await ModelRegistry.instance.register(
+          path: widget.entry.path,
+          displayName: widget.entry.displayName,
+          family: widget.entry.family,
+          fileType: widget.entry.fileType,
+          sha256: hex,
+        );
+        widget.onVerified();
+        if (!mounted) return;
+        await _showHashDialog(
+          title: 'SHA-256 calculé et enregistré',
+          body: hex,
+        );
+      } else if (hex == stored) {
+        await _showHashDialog(
+          title: 'Intégrité vérifiée',
+          body: 'Le SHA-256 correspond à celui enregistré :\n\n$hex',
+        );
+      } else {
+        await _showHashDialog(
+          title: 'SHA-256 différent !',
+          body:
+              'Attendu : $stored\n\n'
+              'Calculé : $hex\n\n'
+              'Le fichier a été modifié depuis l\'installation.',
+          warning: true,
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Erreur de vérification : $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
+  }
+
+  Future<void> _showHashDialog({
+    required String title,
+    required String body,
+    bool warning = false,
+  }) async {
+    if (!mounted) return;
+    final theme = Theme.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(
+            title,
+            style: warning
+                ? TextStyle(color: theme.colorScheme.error)
+                : null,
+          ),
+          content: SelectableText(
+            body,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: body));
+              },
+              child: const Text('Copier'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final entry = widget.entry;
+    final hash = entry.sha256;
+    final shortHash = hash == null
+        ? 'SHA-256 non enregistré'
+        : 'SHA-256 ${hash.substring(0, 12)}…';
     return ListTile(
       leading: Icon(
-        isActive ? Icons.radio_button_checked : Icons.radio_button_off,
-        color: isActive ? cs.primary : cs.outline,
+        widget.isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+        color: widget.isActive ? cs.primary : cs.outline,
       ),
       title: Text(entry.displayName),
-      subtitle: Text(
-        '${entry.family} · ${entry.fileType} · ${entry.sizeLabel}',
-        style: Theme.of(context).textTheme.bodySmall,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${entry.family} · ${entry.fileType} · ${entry.sizeLabel}',
+            style: textTheme.bodySmall,
+          ),
+          Text(
+            shortHash,
+            style: textTheme.bodySmall?.copyWith(
+              color: cs.outline,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.delete_outline),
-        tooltip: 'Retirer de la liste',
-        onPressed: onRemove,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: _verifying
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.verified_outlined),
+            tooltip: 'Vérifier l\'intégrité (SHA-256)',
+            onPressed: _verifying ? null : _verify,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Retirer de la liste',
+            onPressed: widget.onRemove,
+          ),
+        ],
       ),
-      onTap: isActive ? null : onSetActive,
+      onTap: widget.isActive ? null : widget.onSetActive,
     );
   }
 }

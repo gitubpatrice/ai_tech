@@ -7,6 +7,7 @@ class ModelEntry {
     required this.family,
     required this.sizeBytes,
     required this.fileType,
+    this.sha256,
   });
 
   /// Identifiant stable (hash court du path).
@@ -26,12 +27,30 @@ class ModelEntry {
 
   final int sizeBytes;
 
+  /// SHA-256 hex lowercase du fichier au moment de l'installation, ou `null`
+  /// pour les entrées créées avant v0.5.0 (legacy) ou ajoutées sans copie
+  /// sandbox (chemin direct hors `installFromSafFile`).
+  ///
+  /// Permet à l'utilisateur de comparer offline avec le hash officiel
+  /// publié par Kaggle / HuggingFace, et de vérifier l'intégrité plus tard.
+  final String? sha256;
+
   String get sizeLabel {
     if (sizeBytes >= 1024 * 1024 * 1024) {
       return '${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} Go';
     }
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(0)} Mo';
   }
+
+  ModelEntry copyWith({String? sha256}) => ModelEntry(
+    id: id,
+    displayName: displayName,
+    path: path,
+    family: family,
+    sizeBytes: sizeBytes,
+    fileType: fileType,
+    sha256: sha256 ?? this.sha256,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -40,6 +59,7 @@ class ModelEntry {
     'family': family,
     'fileType': fileType,
     'sizeBytes': sizeBytes,
+    if (sha256 != null) 'sha256': sha256,
   };
 
   factory ModelEntry.fromJson(Map<String, dynamic> json) {
@@ -50,6 +70,7 @@ class ModelEntry {
       family: json['family'] as String? ?? 'gemma',
       fileType: json['fileType'] as String? ?? 'task',
       sizeBytes: json['sizeBytes'] as int? ?? 0,
+      sha256: json['sha256'] as String?,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:ai_tech/models/model_entry.dart';
 import 'package:ai_tech/services/storage/model_installer.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,6 +101,43 @@ void main() {
       );
     },
   );
+
+  test('ModelEntry persiste le SHA-256 via toJson/fromJson', () {
+    const hash =
+        'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+    const entry = ModelEntry(
+      id: 'abc123',
+      displayName: 'Gemma 3 1B',
+      path: '/data/user/0/com.filestech.ai_tech/files/models/gemma.task',
+      family: 'gemma',
+      fileType: 'task',
+      sizeBytes: 554 * 1024 * 1024,
+      sha256: hash,
+    );
+
+    final json = entry.toJson();
+    expect(json['sha256'], equals(hash));
+
+    final round = ModelEntry.fromJson(json);
+    expect(round.sha256, equals(hash));
+    expect(round.id, equals(entry.id));
+    expect(round.sizeBytes, equals(entry.sizeBytes));
+  });
+
+  test('ModelEntry.fromJson sans sha256 (legacy v0.4) → null', () {
+    final json = <String, dynamic>{
+      'id': 'old',
+      'displayName': 'Legacy',
+      'path': '/x.task',
+      'family': 'gemma',
+      'fileType': 'task',
+      'sizeBytes': 1024 * 1024,
+    };
+    final entry = ModelEntry.fromJson(json);
+    expect(entry.sha256, isNull);
+    // Et toJson() ne doit pas écrire `null` (champ omis).
+    expect(entry.toJson().containsKey('sha256'), isFalse);
+  });
 
   test('installFromSafFile sanitize le filename (path traversal)', () async {
     final source = File('${tmpRoot.path}${Platform.pathSeparator}src.bin')

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_gemma/flutter_gemma.dart';
 
 import '../models/model_family.dart';
+import '../models/model_limits.dart';
 
 /// Service de chat multi-tour basé sur `InferenceChat` de flutter_gemma 0.14.
 ///
@@ -77,7 +78,7 @@ class ChatService {
     if (!await file.exists()) {
       throw ArgumentError('Fichier modèle introuvable : $path');
     }
-    if (await file.length() < 50 * 1024 * 1024) {
+    if (await file.length() < ModelLimits.minModelBytes) {
       throw ArgumentError('Fichier modèle trop petit, fichier suspect.');
     }
 

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_gemma/flutter_gemma.dart';
 
 import '../models/model_family.dart';
+import '../models/model_limits.dart';
 
 /// Service single-turn pour le banc d'essai (`SpikeScreen`).
 ///
@@ -30,7 +31,7 @@ class LlmService {
       throw ArgumentError('Fichier modèle introuvable: $path');
     }
     final size = await file.length();
-    if (size < 50 * 1024 * 1024) {
+    if (size < ModelLimits.minModelBytes) {
       throw ArgumentError(
         'Fichier suspect (${(size / 1024 / 1024).toStringAsFixed(1)} Mo). '
         'Un modèle .task fait typiquement 500 Mo à 4 Go.',
