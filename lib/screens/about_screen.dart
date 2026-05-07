@@ -145,8 +145,8 @@ class _PromiseCard extends StatelessWidget {
             const SizedBox(height: 12),
             const _Bullet(
               text:
-                  '100 % hors-ligne — pas de permission Internet, '
-                  'pas de cloud, pas de compte.',
+                  '100 % hors-ligne — la permission Internet est retirée '
+                  'du manifest (tools:node="remove"). Aucun cloud, aucun compte.',
             ),
             const _Bullet(
               text:

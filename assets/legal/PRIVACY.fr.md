@@ -1,6 +1,6 @@
 # Politique de confidentialité — AI Tech
 
-**Version 0.3 — Mai 2026**
+**Version 0.4.3 — Mai 2026**
 
 ## En une phrase
 
@@ -11,7 +11,7 @@ AI Tech ne collecte, ne transmet et ne stocke aucune donnée sur des serveurs di
 ### Données traitées
 
 - **Vos messages et les réponses du modèle** : générés et conservés exclusivement sur votre téléphone, dans une zone de stockage privée à l'application, **chiffrée AES-256-GCM** avec une clé unique générée localement et stockée dans le **Android Keystore**.
-- **Le modèle d'IA (`.task` / `.litertlm`)** : fichier téléchargé par vos soins (Kaggle, HuggingFace…) et lu directement depuis votre stockage. AI Tech n'envoie aucune donnée à l'éditeur du modèle.
+- **Le modèle d'IA (`.task` / `.litertlm`)** : fichier téléchargé par votre **navigateur système** depuis Kaggle ou HuggingFace (le bouton « Télécharger le modèle » ouvre simplement un intent `ACTION_VIEW` ; AI Tech n'a pas la permission Internet et ne télécharge rien lui-même), puis lu directement depuis votre stockage. AI Tech n'envoie aucune donnée à l'éditeur du modèle.
 - **Les paramètres (température, longueur, modèle actif)** : stockés dans les préférences locales de l'application, en clair (pas de donnée sensible).
 
 ### Données NON traitées

@@ -6,21 +6,25 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Android](https://img.shields.io/badge/Android-7%2B-3DDC84?logo=android)](https://android.com)
 
-AI Tech est un assistant IA conversationnel qui tourne **entièrement sur votre téléphone**, sans connexion Internet, sans compte, sans abonnement, sans tracker. C'est la 4ᵉ application de la suite **Files Tech** (après PDF Tech, Read Files Tech, Pass Tech).
+AI Tech est un assistant IA conversationnel **100 % on-device Android** : Gemma 3 1B int4 (ou Qwen / Phi / Llama / DeepSeek) exécuté localement via **MediaPipe LLM Inference**, aucune connexion Internet, chats chiffrés. C'est la 4ᵉ application de la suite **Files Tech** (après PDF Tech, Read Files Tech, Pass Tech).
 
 ## Engagement
 
-- **100 % hors-ligne** — pas de permission `INTERNET`, l'app est techniquement incapable de communiquer avec un serveur distant. Vérifiable dans `android/app/src/main/AndroidManifest.xml`.
-- **Conversations chiffrées** AES-256-GCM avec clé unique stockée dans le **Android Keystore**. AAD = identifiant de session (un fichier `.aichat` ne peut pas être déplacé d'une session à une autre).
-- **Mode panique** — efface clé + historique + modèles enregistrés + paramètres en un appui. Sans la clé, les chats même copiés ailleurs deviennent illisibles.
+- **100 % hors-ligne** — la permission `INTERNET` est **explicitement retirée** du manifest (`tools:node="remove"`). L'app est techniquement incapable de communiquer avec un serveur distant. Vérifiable dans `android/app/src/main/AndroidManifest.xml`.
+- **Conversations chiffrées** AES-256-GCM, clé maître scellée par le **Android Keystore**, persistance via `EncryptedJsonStore<T>` (écriture atomique avec rename, AAD bindée à l'identifiant de session).
+- **Mode panique** — efface clé + historique + modèles enregistrés + paramètres + index RAG en un appui. Sans la clé, les chats copiés ailleurs deviennent illisibles.
 - **Aucune télémétrie**, aucun crash reporter tiers, aucune publicité.
 - **Code source ouvert** sous licence Apache 2.0.
 
-## Captures
+## Fonctionnalités
 
-```
-[onboarding] → [picker modèle] → [chat avec quick prompts] → [paramètres]
-```
+- **Chat conversationnel** avec un modèle local (Gemma 3 / Qwen / Phi / Llama / DeepSeek), streaming token par token.
+- **Multi-conversations** chiffrées, renommables, exportables.
+- **Spike** — banc d'essai intégré pour mesurer la vitesse d'inférence (tok/s, time-to-first-token) sur le téléphone.
+- **RAG sémantique optionnel** — import de documents, indexation par mots-clés, contexte injecté dans le prompt avec sanitization anti-injection.
+- **Mode panique** — wipe atomique avec timeout dur sur la génération native.
+- **Onboarding scrollable** adapté aux petits écrans (POCO C75 etc.).
+- **Téléchargement modèle via le navigateur système** — bouton "Télécharger le modèle" → intent `ACTION_VIEW` vers Kaggle ou HuggingFace. L'app ne télécharge **rien** elle-même (elle n'a pas la permission `INTERNET`).
 
 ## Modèles supportés
 
@@ -87,16 +91,33 @@ lib/
 
 Audit complet effectué (mai 2026) : voir détails dans [SECURITY.md](SECURITY.md).
 
-- ✅ AES-256-GCM avec nonce CSPRNG, tag 128 bits, AAD = session.id
-- ✅ Magic header `AIC1` sur les fichiers chiffrés
-- ✅ Clé maître dans Android Keystore (`encryptedSharedPreferences`)
-- ✅ `INTERNET` retiré explicitement du manifest avec `tools:node="remove"`
-- ✅ `allowBackup="false"` + `dataExtractionRules` (exclusion totale)
-- ✅ `FLAG_SECURE` (bloque screenshots, recording, aperçu apps récentes)
-- ✅ Mode panique avec timeout dur (la génération native ne peut pas bloquer le wipe)
-- ✅ Validation magic-bytes des fichiers `.task` avant chargement
+- ✅ `INTERNET` et `ACCESS_NETWORK_STATE` **retirés** du manifest via `tools:node="remove"` (offline strict, vérifiable).
+- ✅ `libOpenCL.so` déclaré en `uses-native-library` `required="false"` (accélération GPU MediaPipe ; CPU fallback sinon — pas de risque réseau).
+- ✅ AES-256-GCM avec nonce CSPRNG (Fortuna), tag 128 bits, AAD bindée à l'`id` de la session via `EncryptedJsonStore<T>`.
+- ✅ Persistance atomique (write to tmp + rename) — pas d'état corrompu en cas de crash.
+- ✅ Clé maître dans Android Keystore (via `flutter_secure_storage` / `EncryptedSharedPreferences`).
+- ✅ `allowBackup="false"` + `dataExtractionRules` (exclusion totale) + `usesCleartextTraffic="false"`.
+- ✅ `FLAG_SECURE` côté `MainActivity` (bloque screenshots, screen recording, aperçu dans la liste des apps récentes).
+- ✅ **Sanitization anti-prompt-injection** du prompt utilisateur et des extraits RAG : retrait des balises de rôle Llama / ChatML / Gemma (`<start_of_turn>`, `<|im_start|>`, `[INST]`…) avant injection dans le contexte.
+- ✅ Mode panique avec timeout dur (la génération native ne peut pas bloquer le wipe).
+- ✅ Validation magic-bytes des fichiers `.task` / `.litertlm` avant chargement.
 
-## Build et installation
+## Permissions
+
+Aucune permission Internet : la promesse "100 % offline" est tenue au niveau du manifest. Les seules interactions stockage passent par le Storage Access Framework (SAF) — aucune permission globale `READ_EXTERNAL_STORAGE` ni équivalent.
+
+## Comment installer un modèle
+
+1. Dans l'app, appuyez sur **"Télécharger le modèle"** → un intent `ACTION_VIEW` ouvre **Kaggle** ou **HuggingFace** dans votre navigateur système. L'app n'a pas accès à Internet ; c'est le navigateur qui télécharge.
+2. Téléchargez `gemma3-1b-it-int4.task` (~554 Mo) sur le téléphone.
+3. Revenez dans AI Tech → **"Importer le fichier"** → le SAF picker système s'ouvre, vous sélectionnez le `.task`.
+4. AI Tech valide la taille (≥ 50 Mo) et les magic-bytes (`PK` zip ou `TFL` LiteRT) avant de l'enregistrer dans le registre des modèles.
+
+## Installation
+
+APK signé disponible sur [GitHub Releases — latest](https://github.com/gitubpatrice/ai_tech/releases/latest). Vérifiez le SHA-256 publié dans les notes de version avant install.
+
+## Build local
 
 ### Pré-requis
 - Flutter 3.x (Dart SDK 3.11+)
@@ -113,7 +134,7 @@ flutter build apk --debug
 Voir le workflow `.github/workflows/release.yml`. Push d'un tag `v*` déclenche un build signé automatique avec le keystore stocké en secret GitHub.
 
 ```bash
-git tag v0.3.0
+git tag v0.4.3
 git push --tags
 ```
 

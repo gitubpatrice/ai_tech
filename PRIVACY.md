@@ -1,6 +1,6 @@
 # Politique de confidentialité — AI Tech
 
-**Version** : v0.4.1 — 2026-05-07
+**Version** : v0.4.3 — 2026-05-07
 **Éditeur** : Files Tech / Patrice Haltaya
 **Contact** : contact@files-tech.com
 
@@ -38,9 +38,13 @@ les avez placés (stockage public ou privé selon votre choix).
 ## 3. Modèles d'intelligence artificielle
 
 Vous les téléchargez vous-même depuis les sources officielles : Gemma
-(Google Kaggle, licence Gemma), Qwen, Phi, Llama. AI Tech ne fait que
-les exécuter localement via la bibliothèque MediaPipe LLM Inference.
-Aucun modèle ni aucune sortie n'est transmis à l'éditeur ni à un tiers.
+(Google Kaggle, licence Gemma), Qwen, Phi, Llama, DeepSeek. Le bouton
+« Télécharger le modèle » de l'app ouvre simplement Kaggle ou
+HuggingFace dans votre **navigateur système** (intent `ACTION_VIEW`) :
+c'est votre navigateur qui télécharge, jamais AI Tech (qui n'a pas la
+permission Internet). AI Tech ne fait qu'exécuter le modèle localement
+via MediaPipe LLM Inference. Aucun modèle ni aucune sortie n'est
+transmis à l'éditeur ni à un tiers.
 
 ## 4. Permissions Android
 
