@@ -56,6 +56,22 @@ class LlmService {
     _session = await _model!.createSession(temperature: 0.7, topK: 40);
   }
 
+  /// Recrée la session sans recharger le modèle. À appeler entre 2 runs
+  /// du banc d'essai pour garantir des mesures sans pollution d'historique
+  /// (sinon `addQueryChunk` accumule, biaisant first-token/tok-s).
+  Future<void> resetSession() async {
+    final model = _model;
+    if (model == null) {
+      throw StateError('Modèle non chargé. Appelez load() d\'abord.');
+    }
+    try {
+      await _session?.close();
+    } catch (_) {
+      /* best-effort */
+    }
+    _session = await model.createSession(temperature: 0.7, topK: 40);
+  }
+
   /// Stream tokens pour le prompt donné (single-turn, pas d'historique).
   Stream<String> generateStream(String prompt) async* {
     final session = _session;

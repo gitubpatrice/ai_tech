@@ -65,7 +65,6 @@ lib/
 │   ├── chat_service.dart     — wrapper InferenceChat + system prompt FR + cancel
 │   ├── llm_service.dart      — wrapper single-turn pour le bench
 │   ├── panic_service.dart    — wipe atomique
-│   ├── model_settings.dart   — legacy, conservé pour migration
 │   ├── crypto/
 │   │   ├── secure_random.dart — Fortuna seeded par dart:math Random.secure()
 │   │   ├── aes_gcm.dart       — AES-256-GCM avec AAD optionnelle

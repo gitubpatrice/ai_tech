@@ -21,6 +21,10 @@ class BenchService {
     String prompt, {
     void Function(String partial)? onPartial,
   }) async {
+    // Reset session pour éviter accumulation d'historique entre runs
+    // successifs (biais sur first-token-ms et tok/s).
+    await _llm.resetSession();
+
     final stopwatch = Stopwatch()..start();
     var firstTokenMs = 0;
     var tokenCount = 0;

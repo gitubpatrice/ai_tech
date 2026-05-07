@@ -185,7 +185,22 @@ class RagService {
       RegExp(r'<(start_of_turn|end_of_turn|bos|eos)>', caseSensitive: false),
       RegExp(r'\n\s*(user|model|system|assistant)\s*\n', caseSensitive: false),
       RegExp(
-        r'(^|\n)\s*###\s+(System|Instruction|Réponse)',
+        r'(^|\n)\s*###\s+(System|Instruction|Réponse|Nouvelle\s+instruction)',
+        caseSensitive: false,
+      ),
+      // Injections en français/anglais en début de ligne : "Tu es maintenant…",
+      // "You are now…", "System:", "Assistant:", "Ignore previous instructions"
+      RegExp(
+        r'(^|\n)\s*Tu\s+es\s+(maintenant|désormais|à\s+présent)\b',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(^|\n)\s*You\s+are\s+(now|from\s+now\s+on)\b',
+        caseSensitive: false,
+      ),
+      RegExp(r'(^|\n)\s*(System|Assistant)\s*:', caseSensitive: false),
+      RegExp(
+        r'(^|\n)\s*Ignore\s+(previous|all|toutes?\s+les?)\s+instructions?',
         caseSensitive: false,
       ),
     ];

@@ -103,6 +103,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _load();
   }
 
+  /// Désactive un modèle dont le SHA-256 ne correspond plus (intégrité
+  /// compromise) : unload côté ChatService + clear `activeModelId` si c'est
+  /// celui qui était actif. L'entrée reste dans la registry (l'utilisateur
+  /// peut "Retirer" séparément s'il veut la supprimer définitivement).
+  Future<void> _deactivateModel(ModelEntry entry) async {
+    await ChatService.instance.unloadModel();
+    if (!mounted) return;
+    if (_settings?.activeModelId == entry.id) {
+      await _update(_settings!.copyWith(clearActiveModel: true));
+    }
+    if (!mounted) return;
+    await _load();
+  }
+
   Future<void> _setActive(ModelEntry entry) async {
     if (_settings == null) return;
     await _update(_settings!.copyWith(activeModelId: entry.id));
@@ -220,6 +234,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onSetActive: () => _setActive(m),
                       onRemove: () => _removeModel(m),
                       onVerified: _load,
+                      onDeactivate: () => _deactivateModel(m),
                     ),
                   ),
                   ListTile(
@@ -341,6 +356,7 @@ class _ModelTile extends StatefulWidget {
     required this.onSetActive,
     required this.onRemove,
     required this.onVerified,
+    required this.onDeactivate,
   });
   final ModelEntry entry;
   final bool isActive;
@@ -349,6 +365,11 @@ class _ModelTile extends StatefulWidget {
 
   /// Callback déclenché après un re-calcul SHA-256 réussi (pour reload UI).
   final VoidCallback onVerified;
+
+  /// Callback déclenché quand l'utilisateur veut désactiver le modèle suite
+  /// à un mismatch SHA-256 détecté. Doit unload côté ChatService et clear
+  /// `activeModelId` si applicable, puis reload UI.
+  final Future<void> Function() onDeactivate;
 
   @override
   State<_ModelTile> createState() => _ModelTileState();
@@ -398,14 +419,48 @@ class _ModelTileState extends State<_ModelTile> {
           body: 'Le SHA-256 correspond à celui enregistré :\n\n$hex',
         );
       } else {
-        await _showHashDialog(
-          title: 'SHA-256 différent !',
-          body:
-              'Attendu : $stored\n\n'
-              'Calculé : $hex\n\n'
-              'Le fichier a été modifié depuis l\'installation.',
-          warning: true,
+        // Mismatch : proposer désactivation immédiate du modèle suspect.
+        if (!mounted) return;
+        final disable = await showDialog<bool>(
+          context: context,
+          builder: (ctx) {
+            final theme = Theme.of(ctx);
+            return AlertDialog(
+              title: Text(
+                'SHA-256 différent !',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+              content: SingleChildScrollView(
+                child: SelectableText(
+                  'Le fichier a été modifié depuis l\'installation.\n\n'
+                  'Attendu : $stored\n\n'
+                  'Calculé : $hex',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Ignorer'),
+                ),
+                FilledButton.tonal(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(
+                    foregroundColor: theme.colorScheme.onErrorContainer,
+                    backgroundColor: theme.colorScheme.errorContainer,
+                  ),
+                  child: const Text('Désactiver ce modèle'),
+                ),
+              ],
+            );
+          },
         );
+        if (disable == true && mounted) {
+          await widget.onDeactivate();
+        }
       }
     } catch (e) {
       messenger.showSnackBar(
