@@ -31,6 +31,10 @@ class SecretKey {
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(
       storageNamespace: 'ai_tech_secure',
+      // Explicite (déjà le défaut en v10) : si le backend de chiffrement
+      // change (ex. v9 ESP → v10 DataStore+Keystore), la lib migre les
+      // données existantes au premier accès au lieu de les perdre.
+      migrateOnAlgorithmChange: true,
     ),
   );
 
@@ -68,6 +72,14 @@ class SecretKey {
     }
     try {
       await _storage.deleteAll();
+    } catch (_) {
+      /* best-effort */
+    }
+    // Defensive : on wipe aussi le namespace par défaut au cas où une
+    // migration v9 → v10 (ou un futur changement de namespace) aurait
+    // laissé des résidus dans l'ancien backing store.
+    try {
+      await const FlutterSecureStorage().deleteAll();
     } catch (_) {
       /* best-effort */
     }

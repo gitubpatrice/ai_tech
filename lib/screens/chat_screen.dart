@@ -71,11 +71,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
     // On sauvegarde à chaque mise en arrière-plan : si l'OS tue l'app, rien
     // n'est perdu pour les messages déjà finis (les `pending` sont filtrés).
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+    // On `await` le save sur `paused` (l'OS laisse ~5 s avant de tuer après
+    // paused) : c'est la voie de persistance FIABLE — fire-and-forget peut
+    // tronquer un fichier atomique en cas de kill rapide.
+    if (state == AppLifecycleState.paused) {
+      final hasContent = _session.messages.any((m) => !m.pending);
+      if (hasContent) {
+        try {
+          await EncryptedChatStore.instance.save(_session);
+        } catch (_) {
+          /* best-effort : pas de UI à ce stade */
+        }
+      }
+    } else if (state == AppLifecycleState.inactive) {
       _persistIfNeeded();
     }
   }
@@ -90,10 +101,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // Persistance "best-effort" : dispose() est synchrone, on ne peut pas
     // await. Si l'OS tue l'app juste après pop, le save peut être tronqué.
     // La persistance FIABLE passe par didChangeAppLifecycleState(paused)
-    // qui est appelé AVANT dispose et dont le save est await en pratique
-    // (l'OS laisse ~5s avant de tuer après paused).
+    // qui est appelé AVANT dispose et dont le save est await.
     _persistIfNeeded();
-    _chat.dispose();
+    // NB : on ne dispose PAS `_chat` ici — ChatService est un singleton dont
+    // le handle natif MediaPipe doit survivre aux pop/push de ChatScreen
+    // (ex. retour depuis Settings). Le dispose réel a lieu sur changement
+    // de modèle (`_loadActiveModel`) ou sur panique.
     super.dispose();
   }
 

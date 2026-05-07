@@ -28,9 +28,24 @@ class KeywordIndexer implements RagIndexer {
   /// chunkId → documentId pour le clear par doc
   final Map<String, String> _chunkDoc = {};
 
+  /// Future-chain pour sérialiser les opérations mutatrices ([index],
+  /// [remove], [clear]) ainsi que la lecture [search]. Évite les data races
+  /// si l'UI déclenche `addDocument` pendant qu'un `bootstrap` itère encore
+  /// les fichiers : sans sérialisation, deux `index` concurrents corrompent
+  /// `_postings` (modification de Set en cours d'itération).
+  Future<void> _opChain = Future.value();
+
+  Future<T> _serialize<T>(Future<T> Function() op) {
+    final result = _opChain.then((_) => op());
+    // Capture les erreurs pour ne pas casser la chaîne (sinon le prochain
+    // .then ne se déclencherait jamais et on figerait l'indexer).
+    _opChain = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
   @override
-  Future<void> index(RagDocument document) async {
-    await remove(document.id);
+  Future<void> index(RagDocument document) => _serialize(() async {
+    await _removeUnsafe(document.id);
     for (final chunk in document.chunked()) {
       _chunks[chunk.id] = chunk;
       _chunkDoc[chunk.id] = document.id;
@@ -40,10 +55,13 @@ class KeywordIndexer implements RagIndexer {
         (_postings[t] ??= <String>{}).add(chunk.id);
       }
     }
-  }
+  });
 
   @override
-  Future<void> remove(String documentId) async {
+  Future<void> remove(String documentId) =>
+      _serialize(() => _removeUnsafe(documentId));
+
+  Future<void> _removeUnsafe(String documentId) async {
     final affected = _chunkDoc.entries
         .where((e) => e.value == documentId)
         .map((e) => e.key)
@@ -60,7 +78,10 @@ class KeywordIndexer implements RagIndexer {
   }
 
   @override
-  Future<List<RagSearchHit>> search(String query, {int k = 5}) async {
+  Future<List<RagSearchHit>> search(String query, {int k = 5}) =>
+      _serialize(() => _searchUnsafe(query, k: k));
+
+  Future<List<RagSearchHit>> _searchUnsafe(String query, {int k = 5}) async {
     final terms = _tokenize(query).toSet();
     if (terms.isEmpty || _chunks.isEmpty) return [];
 
@@ -92,12 +113,12 @@ class KeywordIndexer implements RagIndexer {
   }
 
   @override
-  Future<void> clear() async {
+  Future<void> clear() => _serialize(() async {
     _chunks.clear();
     _postings.clear();
     _chunkLen.clear();
     _chunkDoc.clear();
-  }
+  });
 
   /// Tokenisation simple : minuscules, suppression diacritiques, split sur
   /// caractères non alphanumériques, mots ≥ 3 caractères, stop-words FR.

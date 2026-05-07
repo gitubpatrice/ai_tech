@@ -37,6 +37,12 @@ class ChatService {
 
   StreamController<String>? _activeStream;
 
+  /// Mutex défensif : si l'UI déclenche deux `sendMessage` quasi-simultanés
+  /// (double-tap avant que `_generating=true` ne soit setState côté ChatScreen),
+  /// la 2e doit échouer proprement plutôt que crasher MediaPipe (qui ne tolère
+  /// pas deux générations sur la même session).
+  Completer<void>? _activeGen;
+
   /// Souscription au stream natif MediaPipe — gardée pour pouvoir
   /// l'annuler explicitement et propager le cancel jusqu'au natif (sinon
   /// la génération continue en arrière-plan, gaspillant CPU/RAM).
@@ -118,11 +124,16 @@ class ChatService {
     if (chat == null) {
       return Stream.error(StateError('Modèle non chargé.'));
     }
+    if (_activeGen != null) {
+      return Stream.error(StateError('Génération déjà en cours.'));
+    }
     final clipped = userText.length > maxUserPromptChars
         ? userText.substring(0, maxUserPromptChars)
         : userText;
     final controller = StreamController<String>();
     _activeStream = controller;
+    final genCompleter = Completer<void>();
+    _activeGen = genCompleter;
 
     Future<void> run() async {
       try {
@@ -162,6 +173,10 @@ class ChatService {
         if (identical(_activeStream, controller)) {
           _activeStream = null;
         }
+        if (identical(_activeGen, genCompleter)) {
+          _activeGen = null;
+        }
+        if (!genCompleter.isCompleted) genCompleter.complete();
       }
     }
 
