@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../services/storage/model_installer.dart';
 
 /// Picker pour les modèles `.task` / `.litertlm`.
 ///
@@ -182,7 +186,43 @@ class ModelPickerScreen extends StatelessWidget {
     }
 
     if (!context.mounted) return;
-    Navigator.of(context).pop(path);
+    final result = await _installToSandbox(
+      context,
+      sourcePath: path,
+      filename: picked0.name,
+    );
+    if (result == null) return; // erreur ou annulation déjà notifiée
+    if (!context.mounted) return;
+    Navigator.of(context).pop(result);
+  }
+
+  /// Affiche un dialog modal avec progression pendant la copie en sandbox,
+  /// puis un récapitulatif avec le SHA-256 (copiable). Renvoie le path
+  /// final dans le sandbox, ou `null` si l'utilisateur a annulé / une
+  /// erreur est survenue (snack déjà émis dans ce cas).
+  Future<String?> _installToSandbox(
+    BuildContext context, {
+    required String sourcePath,
+    required String filename,
+  }) async {
+    final completer = Completer<String?>();
+
+    // Lance la copie en arrière-plan dès l'ouverture du dialog.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return _InstallProgressDialog(
+          sourcePath: sourcePath,
+          filename: filename,
+          onDone: (finalPath) {
+            if (!completer.isCompleted) completer.complete(finalPath);
+          },
+        );
+      },
+    );
+
+    return completer.future;
   }
 
   @override
@@ -267,9 +307,9 @@ class ModelPickerScreen extends StatelessWidget {
                         n: '2',
                         title: 'Importez-le ici',
                         subtitle:
-                            'Une fois le `.task` téléchargé, "Importer" '
-                            'le copie en sécurité dans le sandbox de l\'app '
-                            '(SHA-256 vérifié).',
+                            'Le fichier sera copié en sécurité dans le '
+                            'sandbox de l\'app et un SHA-256 sera affiché '
+                            'pour vérification.',
                       ),
                     ],
                   ),
@@ -348,6 +388,203 @@ class _StepRow extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Dialog modal qui orchestre la copie en streaming d'un modèle SAF
+/// vers le sandbox app, affiche la progression, puis présente le
+/// SHA-256 calculé avec un bouton de copie + un bouton "Continuer"
+/// qui ferme le dialog en remontant le path final.
+class _InstallProgressDialog extends StatefulWidget {
+  const _InstallProgressDialog({
+    required this.sourcePath,
+    required this.filename,
+    required this.onDone,
+  });
+
+  final String sourcePath;
+  final String filename;
+
+  /// Appelé une seule fois avec :
+  ///   - le path sandbox final si tout va bien et l'utilisateur a validé,
+  ///   - `null` si annulation ou erreur (snack déjà affiché par le picker).
+  final void Function(String? finalPath) onDone;
+
+  @override
+  State<_InstallProgressDialog> createState() => _InstallProgressDialogState();
+}
+
+class _InstallProgressDialogState extends State<_InstallProgressDialog> {
+  StreamSubscription<ModelInstallEvent>? _sub;
+  int _copied = 0;
+  int _total = 0;
+  String? _finalPath;
+  String? _sha256;
+  Object? _error;
+  bool _completed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  void _start() {
+    final stream = ModelInstaller.instance.installFromSafFile(
+      widget.sourcePath,
+      widget.filename,
+    );
+    _sub = stream.listen(
+      (ev) {
+        if (!mounted) return;
+        setState(() {
+          _copied = ev.copied;
+          _total = ev.total;
+          if (ev.finalPath != null) {
+            _finalPath = ev.finalPath;
+            _sha256 = ev.sha256;
+          }
+        });
+      },
+      onError: (Object e, StackTrace _) {
+        if (!mounted) return;
+        setState(() => _error = e);
+      },
+      onDone: () {
+        if (!mounted) return;
+        // Affiche l'écran récapitulatif tant que l'utilisateur n'a pas
+        // tapé "Continuer" / "Fermer". On ne pop pas tout seul.
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  String _fmtMo(int bytes) =>
+      '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
+
+  void _finish(String? path) {
+    if (_completed) return;
+    _completed = true;
+    Navigator.of(context).pop();
+    widget.onDone(path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    if (_error != null) {
+      return AlertDialog(
+        title: const Text('Échec de la copie'),
+        content: Text(
+          'La copie du modèle a échoué :\n\n$_error',
+          style: theme.textTheme.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => _finish(null),
+            child: const Text('Fermer'),
+          ),
+        ],
+      );
+    }
+
+    final done = _finalPath != null && _sha256 != null;
+    final progress = _total > 0 ? _copied / _total : 0.0;
+
+    return AlertDialog(
+      title: Text(done ? 'Modèle copié' : 'Copie en cours…'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!done) ...[
+            Text(
+              'Copie du modèle dans le sandbox de l\'app et calcul '
+              'du SHA-256.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(value: progress.clamp(0.0, 1.0)),
+            const SizedBox(height: 8),
+            Text(
+              _total > 0
+                  ? 'Copié : ${_fmtMo(_copied)} / ${_fmtMo(_total)}  '
+                      '(${(progress * 100).toStringAsFixed(1)} %)'
+                  : 'Préparation…',
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.outline),
+            ),
+          ] else ...[
+            Text(
+              'Le fichier a été copié dans le sandbox de l\'app '
+              '(${_fmtMo(_total)}).',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'SHA-256 (à comparer avec la source officielle si besoin) :',
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.outline),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                _sha256!,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await Clipboard.setData(ClipboardData(text: _sha256!));
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('SHA-256 copié.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                label: const Text('Copier le hash'),
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        if (!done)
+          TextButton(
+            onPressed: () {
+              _sub?.cancel();
+              _finish(null);
+            },
+            child: const Text('Annuler'),
+          )
+        else
+          FilledButton(
+            onPressed: () => _finish(_finalPath),
+            child: const Text('Continuer'),
+          ),
       ],
     );
   }

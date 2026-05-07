@@ -1,7 +1,7 @@
 name: ai_tech
 description: "Assistant IA 100% on-device — Files Tech"
 publish_to: 'none'
-version: 0.4.3+4
+version: 0.4.4+5
 
 environment:
   sdk: ^3.11.5
@@ -47,6 +47,11 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+  # Mock de path_provider pour les tests unitaires
+  # (déjà transitivement présent via path_provider).
+  path_provider_platform_interface: ^2.1.0
+  plugin_platform_interface: ^2.1.0
 
 flutter:
   uses-material-design: true
