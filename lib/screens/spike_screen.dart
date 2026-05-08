@@ -2,20 +2,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/bench_result.dart';
 import '../services/bench_service.dart';
 import '../services/chat_service.dart';
 import '../services/llm_service.dart';
 
 /// Écran de spike technique pour AI Tech.
-///
-/// Permet à l'utilisateur de :
-///   1. Charger un modèle `.task` (Gemma 2 2B / Gemma 3 1B) depuis le stockage.
-///   2. Lancer un prompt de test.
-///   3. Lire les métriques (first-token latency, tokens/s) pour valider la
-///      faisabilité sur les devices cibles (S24, S9, Redmi 9C).
-///
-/// Aucune donnée ne sort du téléphone : pas de réseau, pas de télémétrie.
 class SpikeScreen extends StatefulWidget {
   const SpikeScreen({super.key});
 
@@ -26,27 +19,34 @@ class SpikeScreen extends StatefulWidget {
 class _SpikeScreenState extends State<SpikeScreen> {
   final _llm = LlmService.instance;
   late final _bench = BenchService(_llm);
-  final _promptCtrl = TextEditingController(
-    text: 'Explique en 3 phrases ce qu\'est la photosynthèse.',
-  );
+  TextEditingController? _promptCtrl;
 
   String? _modelPath;
   bool _loading = false;
   bool _running = false;
-  String _status = 'Aucun modèle chargé.';
+  String _status = '';
   String _partial = '';
   BenchResult? _result;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_promptCtrl == null) {
+      final t = AppLocalizations.of(context);
+      _promptCtrl = TextEditingController(text: t.spikePromptDefault);
+      _status = t.spikeNoModel;
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
-    _promptCtrl.dispose();
-    // Pas de _llm.dispose() ici : le PopScope gère déjà la libération du
-    // handle natif via onPopInvokedWithResult. Double-dispose était fragile
-    // (idempotent best-effort mais sémantique trompeuse).
+    _promptCtrl?.dispose();
     super.dispose();
   }
 
   Future<void> _pickAndLoad() async {
+    final t = AppLocalizations.of(context);
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: false,
@@ -55,48 +55,42 @@ class _SpikeScreenState extends State<SpikeScreen> {
     final path = picked?.files.single.path;
     if (path == null) return;
     if (!path.toLowerCase().endsWith('.task')) {
-      _setStatus('Format non supporté : choisissez un fichier .task');
+      _setStatus(t.spikeWrongFormat);
       return;
     }
 
     setState(() {
       _loading = true;
       _modelPath = path;
-      _status = 'Installation du modèle…';
+      _status = t.spikeInstalling;
       _result = null;
       _partial = '';
     });
 
     try {
-      // CRITIQUE : `LlmService.load()` et `ChatService.installAndLoad()`
-      // appellent tous deux `FlutterGemma.getActiveModel()` qui pointe sur le
-      // même handle natif global. Si Chat a chargé un modèle puis l'utilisateur
-      // ouvre Spike, il faut libérer le handle côté Chat avant que Spike ne
-      // crée le sien — sinon `_llm.dispose()` plus tard fermerait un handle que
-      // ChatService.instance pense toujours posséder. ChatService recharge
-      // paresseusement (ensureLoaded) au retour dans ChatScreen.
       await ChatService.instance.unloadModel();
       await _llm.installFromFile(path);
-      _setStatus('Chargement en mémoire (peut prendre 10–20 s)…');
+      _setStatus(t.spikeLoadingHint);
       await _llm.load();
-      _setStatus('Modèle prêt.');
+      _setStatus(t.spikeReady);
     } catch (e) {
-      _setStatus('Erreur : $e');
+      _setStatus(t.commonErrorWith('$e'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _runBench() async {
+    final t = AppLocalizations.of(context);
     if (!_llm.isLoaded || _running) return;
-    final prompt = _promptCtrl.text.trim();
+    final prompt = _promptCtrl?.text.trim() ?? '';
     if (prompt.isEmpty) return;
 
     setState(() {
       _running = true;
       _partial = '';
       _result = null;
-      _status = 'Génération en cours…';
+      _status = t.spikeGenerating;
     });
 
     try {
@@ -110,10 +104,10 @@ class _SpikeScreenState extends State<SpikeScreen> {
       if (!mounted) return;
       setState(() {
         _result = res;
-        _status = 'Terminé.';
+        _status = t.spikeFinished;
       });
     } catch (e) {
-      _setStatus('Erreur génération : $e');
+      _setStatus(t.spikeGenerationError('$e'));
     } finally {
       if (mounted) setState(() => _running = false);
     }
@@ -127,13 +121,8 @@ class _SpikeScreenState extends State<SpikeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context);
     return PopScope(
-      // Pendant `_pickAndLoad`, on bloque le retour : un dispose en plein
-      // milieu de `_llm.load()` peut laisser un handle MediaPipe natif
-      // intermédiaire (modèle installé, session pas encore créée), et
-      // déstabiliser le ChatService global qui re-crée son handle plus
-      // tard. Une fois `_loading=false`, l'utilisateur peut sortir
-      // librement et `dispose()` libère proprement le handle natif.
       canPop: !_loading,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
@@ -142,60 +131,67 @@ class _SpikeScreenState extends State<SpikeScreen> {
         Navigator.pop(context);
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('AI Tech — Spike'),
-        backgroundColor: theme.colorScheme.inversePrimary,
-      ),
-      body: AbsorbPointer(
-        absorbing: _loading,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _ModelCard(
-                modelPath: _modelPath,
-                isLoaded: _llm.isLoaded,
-                loading: _loading,
-                onPick: _pickAndLoad,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _promptCtrl,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Prompt',
-                  border: OutlineInputBorder(),
+        appBar: AppBar(
+          title: Text(t.spikeTitle),
+          backgroundColor: theme.colorScheme.inversePrimary,
+        ),
+        body: AbsorbPointer(
+          absorbing: _loading,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ModelCard(
+                  modelPath: _modelPath,
+                  isLoaded: _llm.isLoaded,
+                  loading: _loading,
+                  onPick: _pickAndLoad,
                 ),
-              ),
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                onPressed: _llm.isLoaded && !_running && !_loading
-                    ? _runBench
-                    : null,
-                icon: _running
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.play_arrow),
-                label: Text(_running ? 'Génération…' : 'Lancer'),
-              ),
-              const SizedBox(height: 16),
-              _StatusBanner(text: _status),
-              if (_partial.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _ResponseCard(text: _partial, theme: theme),
+                const SizedBox(height: 16),
+                if (_promptCtrl != null)
+                  TextField(
+                    controller: _promptCtrl,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: t.spikePromptLabel,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: _llm.isLoaded && !_running && !_loading
+                      ? _runBench
+                      : null,
+                  icon: _running
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow),
+                  label: Text(_running ? t.spikeRunning : t.spikeRun),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Semantics(
+                  liveRegion: true,
+                  child: _StatusBanner(text: _status),
+                ),
+                if (_partial.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _ResponseCard(text: _partial, theme: theme),
+                ],
+                if (_result != null) ...[
+                  const SizedBox(height: 12),
+                  _MetricsCard(result: _result!),
+                ],
               ],
-              if (_result != null) ...[
-                const SizedBox(height: 12),
-                _MetricsCard(result: _result!),
-              ],
-            ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -217,6 +213,7 @@ class _ModelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -235,7 +232,7 @@ class _ModelCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     modelPath == null
-                        ? 'Aucun modèle sélectionné'
+                        ? t.spikeNoModelSelected
                         : PathUtils.fileName(modelPath!),
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium,
@@ -246,7 +243,10 @@ class _ModelCard extends StatelessWidget {
             const SizedBox(height: 8),
             FilledButton.tonal(
               onPressed: loading ? null : onPick,
-              child: Text(loading ? 'Chargement…' : 'Choisir un .task'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+              child: Text(loading ? t.commonLoading : t.spikeChooseTask),
             ),
           ],
         ),
@@ -268,7 +268,7 @@ class _StatusBanner extends StatelessWidget {
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(text, style: theme.textTheme.bodySmall),
+      child: Text(text, style: theme.textTheme.bodyMedium),
     );
   }
 }
@@ -296,6 +296,7 @@ class _MetricsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context);
     return Card(
       color: theme.colorScheme.primaryContainer,
       child: Padding(
@@ -303,14 +304,20 @@ class _MetricsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Métriques', style: theme.textTheme.titleMedium),
+            Semantics(
+              header: true,
+              child: Text(
+                t.spikeMetricsTitle,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
             const SizedBox(height: 8),
-            _row('First token', '${result.firstTokenMs} ms'),
-            _row('Durée totale', '${result.totalMs} ms'),
-            _row('Tokens (chunks)', '${result.tokenCount}'),
-            _row('Caractères', '${result.charCount}'),
-            _row('Tokens/s', result.tokensPerSecond.toStringAsFixed(2)),
-            _row('Chars/s', result.charsPerSecond.toStringAsFixed(1)),
+            _row(t.spikeMetricFirstToken, t.spikeMetricFirstTokenValue(result.firstTokenMs)),
+            _row(t.spikeMetricTotalDuration, t.spikeMetricFirstTokenValue(result.totalMs)),
+            _row(t.spikeMetricTokens, '${result.tokenCount}'),
+            _row(t.spikeMetricChars, '${result.charCount}'),
+            _row(t.spikeMetricTokensPerSec, result.tokensPerSecond.toStringAsFixed(2)),
+            _row(t.spikeMetricCharsPerSec, result.charsPerSecond.toStringAsFixed(1)),
           ],
         ),
       ),

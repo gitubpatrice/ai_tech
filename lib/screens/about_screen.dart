@@ -3,11 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../l10n/app_localizations.dart';
+
 /// Écran "À propos" : présentation de l'app, version, licences, support, légal.
-///
-/// Utilise [LegalSupportSections] partagé entre toutes les apps Files Tech
-/// pour rester cohérent (mêmes liens contact, même rendu Markdown des PRIVACY
-/// et TERMS, mêmes garanties anti-XSS sur les schemes d'URL).
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
 
@@ -16,8 +14,6 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  /// Version lue depuis pubspec via package_info_plus — source unique pour
-  /// éviter qu'une string hardcodée ici et le pubspec divergent.
   String _version = '';
 
   @override
@@ -27,10 +23,6 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Future<void> _loadVersion() async {
-    // Try/catch défensif : sur certains devices (modes particuliers,
-    // installations corrompues), `PackageInfo.fromPlatform()` peut throw
-    // un PlatformException. On dégrade proprement plutôt que de laisser
-    // l'écran "À propos" planter au démarrage.
     try {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
@@ -45,9 +37,11 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context);
+    final isEn = Localizations.localeOf(context).languageCode == 'en';
     return Scaffold(
       appBar: AppBar(
-        title: const Text('À propos'),
+        title: Text(t.aboutTitle),
         backgroundColor: theme.colorScheme.inversePrimary,
       ),
       body: SafeArea(
@@ -65,13 +59,17 @@ class _AboutScreenState extends State<AboutScreen> {
               LegalSupportSections(
                 appName: 'AI Tech',
                 version: _version,
-                privacyAsset: 'assets/legal/PRIVACY.fr.md',
-                termsAsset: 'assets/legal/TERMS.fr.md',
+                privacyAsset: isEn
+                    ? 'assets/legal/PRIVACY.en.md'
+                    : 'assets/legal/PRIVACY.fr.md',
+                termsAsset: isEn
+                    ? 'assets/legal/TERMS.en.md'
+                    : 'assets/legal/TERMS.fr.md',
               ),
               const SizedBox(height: 24),
               Center(
                 child: Text(
-                  'Apache 2.0 — Files Tech',
+                  t.aboutLicense,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.outline,
                   ),
@@ -93,26 +91,32 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context);
     return Column(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Image.asset(
-            'assets/icon/ai_tech_icon.png',
-            width: 96,
-            height: 96,
-            fit: BoxFit.cover,
+        ExcludeSemantics(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Image.asset(
+              'assets/icon/ai_tech_icon.png',
+              width: 96,
+              height: 96,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
         const SizedBox(height: 14),
-        Text(
-          'AI Tech',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        Semantics(
+          header: true,
+          child: Text(
+            'AI Tech',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
         ),
         Text(
-          'Version $version',
+          t.aboutVersion(version),
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: cs.outline),
@@ -126,6 +130,7 @@ class _PromiseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -136,32 +141,21 @@ class _PromiseCard extends StatelessWidget {
               children: [
                 Icon(Icons.shield_outlined, color: cs.primary, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  'Notre engagement',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    t.aboutPromiseTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            const _Bullet(
-              text:
-                  '100 % hors-ligne — la permission Internet est retirée '
-                  'du manifest (tools:node="remove"). Aucun cloud, aucun compte.',
-            ),
-            const _Bullet(
-              text:
-                  'Conversations chiffrées AES-256-GCM avec une clé '
-                  'unique stockée dans le Android Keystore.',
-            ),
-            const _Bullet(
-              text: 'Mode panique : efface clé + historique en un appui.',
-            ),
-            const _Bullet(
-              text: 'Code source intégralement publié sous Apache 2.0.',
-            ),
-            const _Bullet(
-              text: 'Aucune télémétrie, aucun tracker, aucune publicité.',
-            ),
+            _Bullet(text: t.aboutPromise1),
+            _Bullet(text: t.aboutPromise2),
+            _Bullet(text: t.aboutPromise3),
+            _Bullet(text: t.aboutPromise4),
+            _Bullet(text: t.aboutPromise5),
           ],
         ),
       ),
@@ -173,6 +167,7 @@ class _HowItWorksCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -183,33 +178,21 @@ class _HowItWorksCard extends StatelessWidget {
               children: [
                 Icon(Icons.memory, color: cs.primary, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  'Comment ça marche',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    t.aboutHowTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            const Text(
-              'AI Tech exécute un modèle de langage open-source (Gemma, Qwen, '
-              'Phi, Llama…) directement sur votre téléphone via la bibliothèque '
-              'MediaPipe LLM Inference de Google.',
-            ),
+            Text(t.aboutHow1),
             const SizedBox(height: 8),
-            const Text(
-              'Vous téléchargez le modèle de votre choix au format .task ou '
-              '.litertlm depuis Kaggle ou HuggingFace, puis vous l\'importez '
-              'dans l\'application. Aucune donnée n\'est envoyée à l\'éditeur '
-              'du modèle ni à un service tiers.',
-            ),
+            Text(t.aboutHow2),
             const SizedBox(height: 12),
-            const Text(
-              'Mises à jour : AI Tech ne contacte aucun serveur de mise à '
-              'jour, contrairement aux autres apps Files Tech, par cohérence '
-              'avec la promesse offline. Les nouvelles versions sont '
-              'publiées sur GitHub Releases et F-Droid — vous décidez quand '
-              'mettre à jour.',
-            ),
+            Text(t.aboutHow3),
           ],
         ),
       ),
@@ -228,9 +211,11 @@ class _Bullet extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Icon(Icons.circle, size: 6),
+          const ExcludeSemantics(
+            child: Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Icon(Icons.circle, size: 6),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(child: Text(text)),

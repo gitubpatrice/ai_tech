@@ -35,6 +35,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Inclure FR + EN ressources Material/AndroidX (réduit également l'APK
+        // en élaguant les locales système non listées).
+        resourceConfigurations += listOf("fr", "en")
     }
 
     signingConfigs {
@@ -45,6 +48,33 @@ android {
                 storeFile = keystoreProperties["storeFile"]?.let { rootProject.file(it as String) }
                 storePassword = keystoreProperties["storePassword"] as String?
             }
+        }
+    }
+
+    // Splits ABI : un APK par architecture (arm64-v8a / armeabi-v7a / x86_64),
+    // au lieu d'un universel qui embarque les 3 et pèse +30-60 Mo (MediaPipe +
+    // libtensorflowlite + libc++_shared × 3). L'utilisateur télécharge ~1/3
+    // de la taille — critique pour POCO C75 / S9 (stockage limité).
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
+    // Splits ABI côté AAB (Play Store / F-Droid). Identique à `splits.abi`
+    // mais via la pipeline App Bundle.
+    bundle {
+        abi {
+            enableSplit = true
+        }
+        language {
+            // Ne PAS splitter par langue : avec generate: true Flutter, les
+            // ARB sont packagés et l'utilisateur peut switcher la langue
+            // dans Settings indépendamment de la locale système.
+            enableSplit = false
         }
     }
 

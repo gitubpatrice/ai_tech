@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/model_family.dart';
 import '../services/storage/app_settings_store.dart';
 import '../services/storage/model_registry.dart';
+import '../utils/snackbar_ext.dart';
 import 'about_screen.dart';
 import 'model_picker_screen.dart';
 
 /// Premier lancement : explique le principe, fait choisir un modèle.
-///
-/// 2 étapes :
-///   1. Bienvenue + 4 garanties (offline, chiffré, panique, open-source).
-///   2. Sélection d'un fichier `.task` ou `.litertlm` → enregistrement
-///      dans le registre + marquage actif + `firstLaunchCompleted = true`.
-///
-/// L'utilisateur peut consulter À propos / Politique de confidentialité
-/// avant de continuer (lien discret en bas).
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.onCompleted});
 
@@ -30,6 +25,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _pickAndFinish() async {
     if (_busy) return;
+    final t = AppLocalizations.of(context);
     final picked = await ModelPickerScreen.pick(context);
     if (picked == null || !mounted) return;
     final path = picked.path;
@@ -51,17 +47,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (!mounted) return;
       widget.onCompleted();
     } catch (e) {
-      _toast('Erreur : $e');
+      if (mounted) context.showFloatingSnack(t.commonErrorWith('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
+  void _goStep2() {
+    setState(() => _step = 1);
+    final t = AppLocalizations.of(context);
+    SemanticsService.announce(t.onboardingAnnounceStep2, TextDirection.ltr);
   }
 
   @override
@@ -75,7 +70,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: _step == 0
                 ? _WelcomeStep(
                     key: const ValueKey('welcome'),
-                    onContinue: () => setState(() => _step = 1),
+                    onContinue: _goStep2,
                   )
                 : _ImportStep(
                     key: const ValueKey('import'),
@@ -97,6 +92,7 @@ class _WelcomeStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -108,56 +104,59 @@ class _WelcomeStep extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Spacer(flex: 1),
-                  Center(
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Icon(
-                        Icons.smart_toy_outlined,
-                        color: cs.onPrimaryContainer,
-                        size: 56,
+                  ExcludeSemantics(
+                    child: Center(
+                      child: Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: cs.primaryContainer,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Icon(
+                          Icons.smart_toy_outlined,
+                          color: cs.onPrimaryContainer,
+                          size: 56,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text(
-                    'Bienvenue dans AI Tech',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      t.onboardingWelcomeTitle,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Un assistant IA qui tourne entièrement sur votre téléphone.',
+                    t.onboardingWelcomeSubtitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 28),
-                  const _Feature(
+                  _Feature(
                     icon: Icons.cloud_off_outlined,
-                    title: '100 % hors-ligne',
-                    text:
-                        'Aucune connexion Internet. L\'app n\'a même pas la '
-                        'permission d\'en faire.',
+                    title: t.onboardingFeatureOfflineTitle,
+                    text: t.onboardingFeatureOfflineText,
                   ),
-                  const _Feature(
+                  _Feature(
                     icon: Icons.lock_outline,
-                    title: 'Conversations chiffrées',
-                    text: 'AES-256-GCM avec clé dans le Android Keystore.',
+                    title: t.onboardingFeatureCryptoTitle,
+                    text: t.onboardingFeatureCryptoText,
                   ),
-                  const _Feature(
+                  _Feature(
                     icon: Icons.local_fire_department_outlined,
-                    title: 'Mode panique',
-                    text: 'Efface clé et historique en un appui. Définitif.',
+                    title: t.onboardingFeaturePanicTitle,
+                    text: t.onboardingFeaturePanicText,
                   ),
-                  const _Feature(
+                  _Feature(
                     icon: Icons.code,
-                    title: 'Code source ouvert',
-                    text: 'Apache 2.0. Vérifiez vous-même nos promesses.',
+                    title: t.onboardingFeatureOpenSourceTitle,
+                    text: t.onboardingFeatureOpenSourceText,
                   ),
                   const Spacer(flex: 2),
                   const SizedBox(height: 16),
@@ -166,14 +165,14 @@ class _WelcomeStep extends StatelessWidget {
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                     ),
-                    child: const Text('Continuer'),
+                    child: Text(t.commonContinue),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const AboutScreen()),
                     ),
-                    child: const Text('À propos · Confidentialité'),
+                    child: Text(t.onboardingAboutLink),
                   ),
                 ],
               ),
@@ -200,6 +199,7 @@ class _ImportStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -215,52 +215,49 @@ class _ImportStep extends StatelessWidget {
                     child: TextButton.icon(
                       onPressed: busy ? null : onBack,
                       icon: const Icon(Icons.arrow_back),
-                      label: const Text('Retour'),
+                      label: Text(t.commonBack),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Center(
-                    child: Icon(
-                      Icons.upload_file_outlined,
-                      size: 72,
-                      color: cs.primary,
+                  ExcludeSemantics(
+                    child: Center(
+                      child: Icon(
+                        Icons.upload_file_outlined,
+                        size: 72,
+                        color: cs.primary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'Choisir un modèle',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      t.onboardingImportTitle,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Téléchargez un modèle au format .task ou .litertlm '
-                    '(Gemma, Qwen, Phi, Llama…) puis sélectionnez-le ici.',
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(t.onboardingImportSubtitle, textAlign: TextAlign.center),
                   const SizedBox(height: 24),
                   Card(
                     color: cs.surfaceContainerHighest,
-                    child: const Padding(
-                      padding: EdgeInsets.all(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Recommandation',
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                            t.onboardingImportCardTitle,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
+                          Text(t.onboardingImportCardBody),
+                          const SizedBox(height: 8),
                           Text(
-                            'Gemma 3 1B (int4) — 554 Mo, excellent en français, '
-                            'très rapide même sur téléphones milieu de gamme.',
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Source : Kaggle → google/gemma-3 → tfLite → '
-                            'gemma3-1b-it-int4',
-                            style: TextStyle(fontStyle: FontStyle.italic),
+                            t.onboardingImportCardSource,
+                            style: const TextStyle(fontStyle: FontStyle.italic),
                           ),
                         ],
                       ),
@@ -268,27 +265,32 @@ class _ImportStep extends StatelessWidget {
                   ),
                   const Spacer(),
                   const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: busy ? null : onPick,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
+                  Semantics(
+                    label: busy ? t.onboardingImportSaving : null,
+                    button: true,
+                    child: FilledButton.icon(
+                      onPressed: busy ? null : onPick,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      icon: busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.upload_file),
+                      label: Text(
+                        busy ? t.onboardingImportSaving : t.onboardingImportSelectAction,
+                      ),
                     ),
-                    icon: busy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_file),
-                    label:
-                        Text(busy ? 'Enregistrement…' : 'Sélectionner un modèle'),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const AboutScreen()),
                     ),
-                    child: const Text('À propos · Confidentialité'),
+                    child: Text(t.onboardingAboutLink),
                   ),
                 ],
               ),
@@ -310,27 +312,31 @@ class _Feature extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: cs.primary, size: 22),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(text, style: Theme.of(context).textTheme.bodySmall),
-              ],
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ExcludeSemantics(
+              child: Icon(icon, color: cs.primary, size: 22),
             ),
-          ),
-        ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(text, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

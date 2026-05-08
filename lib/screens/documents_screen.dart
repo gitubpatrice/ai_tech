@@ -5,8 +5,13 @@ import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/rag/document.dart';
 import '../services/rag/rag_service.dart';
+import '../utils/app_dialogs.dart';
+import '../utils/relative_date.dart';
+import '../utils/snackbar_ext.dart';
+import '../widgets/app_empty_state.dart';
 
 /// Lit un fichier texte dans un Isolate via compute() — évite de bloquer
 /// le thread UI sur des documents > 500 Ko (200+ ms sur S9).
@@ -15,17 +20,6 @@ Future<String> _readTextInIsolate(String path) => compute(_readTextSync, path);
 String _readTextSync(String path) => File(path).readAsStringSync();
 
 /// Gestion des documents indexés pour le RAG.
-///
-/// L'utilisateur peut :
-///   - importer un fichier texte (`.txt`, `.md`, code source) → chiffré dans
-///     `<app_docs>/documents/<id>.aidoc`
-///   - coller du texte directement
-///   - voir la liste, supprimer
-///
-/// Limites volontaires (sécurité + perf) :
-///   - taille max 1 Mo par document (un .txt de 1 Mo ≈ 200 000 mots)
-///   - extensions autorisées : `.txt`, `.md`, `.markdown`, `.csv`, `.log`,
-///     code source courant. PDF / DOCX prévus en ajout futur.
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
 
@@ -66,9 +60,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   Future<void> _ensureBootstrapped() async {
-    // Idempotent : s'aligne sur le bootstrap déjà lancé dans `main.dart`.
-    // On attend explicitement avant de rendre la liste pour ne pas afficher
-    // un faux "Aucun document indexé" pendant que les .aidoc se déchiffrent.
     await RagService.instance.bootstrap();
     if (!mounted) return;
     setState(() => _bootstrapping = false);
@@ -76,6 +67,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   Future<void> _importFile() async {
     if (_busy) return;
+    final t = AppLocalizations.of(context);
     final FilePickerResult? picked;
     try {
       picked = await FilePicker.platform.pickFiles(
@@ -84,7 +76,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         withData: false,
       );
     } catch (e) {
-      _snack('Erreur du picker : $e');
+      if (mounted) context.showFloatingSnack(t.documentsPickerError('$e'));
       return;
     }
     final p = picked?.files.isNotEmpty == true ? picked!.files.first : null;
@@ -92,63 +84,63 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     final path = p.path;
     final name = p.name;
+    if (!mounted) return;
     if (path == null) {
-      _snack('Le système n\'a pas fourni de chemin lisible.');
+      context.showFloatingSnack(t.documentsNoPath);
       return;
     }
     final ext = PathUtils.fileExt(name);
     if (!_allowedExt.contains(ext)) {
-      _snack(
-        'Format non supporté ($ext). Utilisez .txt, .md, .csv, '
-        'ou code source.',
-      );
+      context.showFloatingSnack(t.documentsUnsupportedFormat(ext));
       return;
     }
 
     final file = File(path);
     if (!await file.exists()) {
-      _snack('Fichier introuvable.');
+      if (mounted) context.showFloatingSnack(t.documentsNotFound);
       return;
     }
     final size = await file.length();
     if (size > _maxBytes) {
-      _snack(
-        'Fichier trop volumineux (${(size / 1024 / 1024).toStringAsFixed(2)} Mo). '
-        'Maximum 1 Mo.',
-      );
+      if (mounted) {
+        context.showFloatingSnack(
+          t.documentsTooLarge(
+            '${(size / 1024 / 1024).toStringAsFixed(2)} Mo',
+          ),
+        );
+      }
       return;
     }
 
     setState(() => _busy = true);
     try {
-      // compute() : lecture + décodage UTF-8 dans un Isolate -> UI fluide
-      // même sur S9 / Redmi 9C avec un .txt de plusieurs Mo.
       final text = await _readTextInIsolate(file.path);
       if (text.trim().isEmpty) {
-        _snack('Le fichier est vide.');
+        if (mounted) context.showFloatingSnack(t.documentsEmpty);
         return;
       }
       final title = name.replaceAll(RegExp(r'\.[^.]+$'), '');
       await RagService.instance.addDocument(title: title, text: text);
       if (!mounted) return;
       setState(() {});
-      _snack('Document indexé.');
+      context.showFloatingSnack(t.documentsIndexed);
     } on FileSystemException catch (e) {
-      _snack('Lecture impossible : ${e.message}');
+      if (mounted) context.showFloatingSnack(t.documentsRead(e.message));
     } catch (e) {
-      _snack('Erreur : $e');
+      if (mounted) context.showFloatingSnack(t.commonErrorWith('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _pasteText() async {
+    final t = AppLocalizations.of(context);
     final ctrlTitle = TextEditingController();
     final ctrlText = TextEditingController();
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Coller un texte'),
+        title: Text(t.documentsPasteTitle),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 380, maxWidth: 480),
           child: Column(
@@ -156,9 +148,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             children: [
               TextField(
                 controller: ctrlTitle,
-                decoration: const InputDecoration(
-                  labelText: 'Titre',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: t.documentsTitleField,
+                  border: const OutlineInputBorder(),
                 ),
                 maxLength: 80,
               ),
@@ -169,9 +161,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
-                  decoration: const InputDecoration(
-                    labelText: 'Contenu',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: t.documentsContentField,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ),
@@ -181,11 +173,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
+            child: Text(t.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Indexer'),
+            child: Text(t.documentsIndexAction),
           ),
         ],
       ),
@@ -198,11 +190,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     if (saved != true || !mounted) return;
     if (text.trim().isEmpty) {
-      _snack('Le contenu est vide.');
+      context.showFloatingSnack(t.documentsContentEmpty);
       return;
     }
     if (text.length > _maxBytes) {
-      _snack('Texte trop long (max 1 Mo).');
+      context.showFloatingSnack(t.documentsContentTooLarge);
       return;
     }
     setState(() => _busy = true);
@@ -210,36 +202,22 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       await RagService.instance.addDocument(title: title, text: text);
       if (!mounted) return;
       setState(() {});
-      _snack('Texte indexé.');
+      context.showFloatingSnack(t.documentsTextIndexed);
     } catch (e) {
-      _snack('Erreur : $e');
+      if (mounted) context.showFloatingSnack(t.commonErrorWith('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _delete(RagDocument doc) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer ce document ?'),
-        content: Text(
-          '"${doc.title}" sera supprimé de l\'index et du téléphone (chiffré, irrécupérable).',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
+    final t = AppLocalizations.of(context);
+    final ok = await showConfirmDialog(
+      context,
+      title: t.documentsDeleteConfirmTitle,
+      body: t.documentsDeleteConfirmBody(doc.title),
+      yesLabel: t.commonDelete,
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     await RagService.instance.removeDocument(doc.id);
@@ -247,20 +225,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     setState(() {});
   }
 
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context);
     final docs = RagService.instance.documents;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Documents'),
+        title: Text(t.documentsTitle),
         backgroundColor: theme.colorScheme.inversePrimary,
       ),
       body: SafeArea(
@@ -276,9 +248,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                       child: OutlinedButton.icon(
                         onPressed: _importFile,
                         icon: const Icon(Icons.upload_file),
-                        label: const Text('Importer'),
+                        label: Text(t.documentsImport),
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44),
+                          minimumSize: const Size.fromHeight(48),
                         ),
                       ),
                     ),
@@ -287,9 +259,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                       child: OutlinedButton.icon(
                         onPressed: _pasteText,
                         icon: const Icon(Icons.content_paste_outlined),
-                        label: const Text('Coller'),
+                        label: Text(t.documentsPaste),
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44),
+                          minimumSize: const Size.fromHeight(48),
                         ),
                       ),
                     ),
@@ -300,7 +272,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                 child: _bootstrapping
                     ? const Center(child: CircularProgressIndicator())
                     : docs.isEmpty
-                    ? _Empty()
+                    ? AppEmptyState(
+                        icon: Icons.article_outlined,
+                        title: t.documentsEmptyTitle,
+                        subtitle: t.documentsEmptySubtitle,
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.only(bottom: 24),
                         itemCount: docs.length,
@@ -319,75 +295,36 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 }
 
-class _Empty extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.article_outlined,
-              size: 56,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Aucun document indexé',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Importez un fichier texte ou collez du contenu pour permettre '
-              'à l\'IA de répondre en s\'appuyant dessus.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _DocTile extends StatelessWidget {
   const _DocTile({required this.doc, required this.onDelete});
   final RagDocument doc;
   final VoidCallback onDelete;
 
+  String _charLabel(BuildContext context, int chars) {
+    final t = AppLocalizations.of(context);
+    if (chars >= 10000) {
+      return t.documentsCharCountThousand((chars / 1000).toStringAsFixed(1));
+    }
+    return t.documentsCharCount(chars);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      leading: const Icon(Icons.description_outlined),
-      title: Text(doc.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        '${_sizeLabel(doc.charCount)} · ${_relativeDate(doc.createdAt)}',
-        style: theme.textTheme.bodySmall,
-      ),
-      trailing: IconButton(
-        tooltip: 'Supprimer',
-        icon: const Icon(Icons.delete_outline),
-        onPressed: onDelete,
+    final t = AppLocalizations.of(context);
+    final chars = _charLabel(context, doc.charCount);
+    final when = relativeDate(context, doc.createdAt);
+    return MergeSemantics(
+      child: ListTile(
+        leading: const Icon(Icons.description_outlined),
+        title: Text(doc.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text('$chars · $when', style: theme.textTheme.bodySmall),
+        trailing: IconButton(
+          tooltip: t.commonDelete,
+          icon: const Icon(Icons.delete_outline),
+          onPressed: onDelete,
+        ),
       ),
     );
-  }
-
-  static String _sizeLabel(int chars) {
-    if (chars >= 10000) {
-      return '${(chars / 1000).toStringAsFixed(1)} k caractères';
-    }
-    return '$chars caractères';
-  }
-
-  static String _relativeDate(DateTime d) {
-    final now = DateTime.now();
-    final diff = now.difference(d);
-    if (diff.inMinutes < 1) return 'à l\'instant';
-    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'il y a ${diff.inHours} h';
-    if (diff.inDays < 7) return 'il y a ${diff.inDays} j';
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
 }

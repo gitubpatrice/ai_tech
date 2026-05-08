@@ -27,6 +27,27 @@ class ModelFamilyUtils {
   /// et `ModelRegistry.register()`.
   static String detectFamilyName(String path) => detectFamily(path).name;
 
+  /// Convertit un nom court (`'gemma'`, `'qwen'`, …) vers `ModelFamily`.
+  /// Fallback `gemma` pour toute valeur inconnue. Évite la duplication d'un
+  /// switch inline `_familyOf` dans `ChatScreen`.
+  static ModelFamily fromName(String s) {
+    switch (s) {
+      case 'qwen':
+        return ModelFamily.qwen;
+      case 'phi':
+        return ModelFamily.phi;
+      case 'llama':
+        return ModelFamily.llama;
+      case 'deepseek':
+        return ModelFamily.deepseek;
+      case 'auto':
+        return ModelFamily.auto;
+      case 'gemma':
+      default:
+        return ModelFamily.gemma;
+    }
+  }
+
   /// Nom affichable d'un modèle à partir de son path. Retire le séparateur
   /// de path (Windows ou Unix) et l'extension `.task` / `.litertlm`.
   /// Source unique de vérité pour `SettingsScreen` + `OnboardingScreen`.

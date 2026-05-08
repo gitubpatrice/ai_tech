@@ -1,13 +1,15 @@
 name: ai_tech
 description: "Assistant IA 100% on-device — Files Tech"
 publish_to: 'none'
-version: 0.5.2+10
+version: 0.6.0+11
 
 environment:
   sdk: ^3.11.5
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
@@ -32,6 +34,9 @@ dependencies:
   # AccumulatorSink<Digest> pour le calcul SHA-256 streaming dans
   # `ModelInstaller`.
   convert: ^3.1.1
+
+  # i18n (FR/EN)
+  intl: ^0.20.2
 
   # UI
   share_plus: ^10.0.3
@@ -58,6 +63,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/legal/
     - assets/icon/

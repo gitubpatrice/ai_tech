@@ -2,25 +2,27 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../main.dart';
 import '../models/app_settings.dart';
 import '../models/model_entry.dart';
-import '../models/model_family.dart';
 import '../services/chat_service.dart';
 import '../services/panic_service.dart';
 import '../services/storage/app_settings_store.dart';
 import '../services/storage/encrypted_chat_store.dart';
 import '../services/storage/model_registry.dart';
+import '../utils/app_dialogs.dart';
+import '../utils/snackbar_ext.dart';
 import 'about_screen.dart';
 import 'model_picker_screen.dart';
 
-/// Paramètres : modèles, génération, sécurité, à propos.
-///
-/// Toute modification est persistée immédiatement. Les changements sur la
-/// génération (température, topK, maxTokens) ne s'appliquent qu'au prochain
-/// rechargement du modèle (via "Recharger" ou changement de modèle actif).
+import '../models/model_family.dart';
+
+/// Paramètres : modèles, génération, sécurité, apparence (langue + thème).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -56,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _addModel() async {
     if (_busy) return;
+    final t = AppLocalizations.of(context);
     final picked = await ModelPickerScreen.pick(context);
     if (picked == null || !mounted) return;
     final path = picked.path;
@@ -71,27 +74,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         fileType: fileType,
         sha256: picked.sha256,
       );
-      // Si c'est le premier, le rendre actif.
       if (_settings?.activeModelId == null) {
         await _update(_settings!.copyWith(activeModelId: entry.id));
       }
       await _load();
-      _toast('Modèle ajouté');
+      if (mounted) context.showFloatingSnack(t.settingsModelAdded);
     } catch (e) {
-      _toast('Erreur : $e');
+      if (mounted) context.showFloatingSnack(t.commonErrorWith('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _removeModel(ModelEntry entry) async {
-    final confirm = await _confirm(
-      title: 'Retirer ce modèle ?',
-      body:
-          'Le fichier ${entry.displayName} ne sera pas supprimé du stockage. '
-          'Il sera juste retiré de la liste des modèles enregistrés.',
+    final t = AppLocalizations.of(context);
+    final confirm = await showConfirmDialog(
+      context,
+      title: t.settingsRemoveModelTitle,
+      body: t.settingsRemoveModelBody(entry.displayName),
+      yesLabel: t.settingsRemoveModelYes,
       destructive: true,
-      yesLabel: 'Retirer',
     );
     if (confirm != true || !mounted) return;
     await ModelRegistry.instance.remove(entry.id);
@@ -103,10 +105,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _load();
   }
 
-  /// Désactive un modèle dont le SHA-256 ne correspond plus (intégrité
-  /// compromise) : unload côté ChatService + clear `activeModelId` si c'est
-  /// celui qui était actif. L'entrée reste dans la registry (l'utilisateur
-  /// peut "Retirer" séparément s'il veut la supprimer définitivement).
   Future<void> _deactivateModel(ModelEntry entry) async {
     await ChatService.instance.unloadModel();
     if (!mounted) return;
@@ -119,101 +117,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _setActive(ModelEntry entry) async {
     if (_settings == null) return;
+    final t = AppLocalizations.of(context);
     await _update(_settings!.copyWith(activeModelId: entry.id));
     if (!mounted) return;
-    _toast('Modèle actif : ${entry.displayName}');
+    context.showFloatingSnack(t.settingsModelActive(entry.displayName));
   }
 
   Future<void> _clearChats() async {
-    final confirm = await _confirm(
-      title: 'Effacer toutes les conversations ?',
-      body:
-          'L\'historique chiffré sera supprimé. Vos modèles et paramètres '
-          'sont conservés.',
+    final t = AppLocalizations.of(context);
+    final confirm = await showConfirmDialog(
+      context,
+      title: t.settingsClearConfirmTitle,
+      body: t.settingsClearConfirmBody,
+      yesLabel: t.settingsClearConfirmYes,
       destructive: true,
-      yesLabel: 'Effacer',
     );
     if (confirm != true || !mounted) return;
     await EncryptedChatStore.instance.deleteAll();
     await ChatService.instance.resetConversation();
-    if (mounted) _toast('Conversations effacées');
+    if (mounted) context.showFloatingSnack(t.settingsClearDone);
   }
 
   Future<void> _triggerPanic() async {
-    final confirm = await _confirm(
-      title: 'Mode panique',
-      body:
-          'Cette action efface en bloc :\n\n'
-          '• toutes les conversations chiffrées\n'
-          '• la clé de chiffrement (irrécupérable)\n'
-          '• la liste des modèles enregistrés\n'
-          '• tous les paramètres\n\n'
-          'Les fichiers .task que vous avez téléchargés sur votre téléphone '
-          'ne sont pas touchés. L\'application redémarre comme au premier '
-          'lancement.\n\nContinuer ?',
+    final t = AppLocalizations.of(context);
+    final confirm = await showConfirmDialog(
+      context,
+      title: t.settingsPanic,
+      body: t.settingsPanicConfirmBody,
+      yesLabel: t.settingsPanicConfirmYes,
       destructive: true,
-      yesLabel: 'Tout effacer',
     );
     if (confirm != true || !mounted) return;
 
     setState(() => _busy = true);
     await PanicService.instance.trigger();
     if (!mounted) return;
-    // Force la re-évaluation de `firstLaunchCompleted` AVANT de remplacer
-    // la route. Sans ça, `_AiTechAppState._firstLaunchDone` resterait à
-    // `true` (cache du `Future`) et l'utilisateur retomberait directement
-    // sur `ChatScreen` au lieu de l'onboarding pourtant attendu après wipe.
+    SemanticsService.announce(t.settingsPanicAnnounceDone, TextDirection.ltr);
     AiTechApp.refreshFirstLaunch();
-    // Rentre dans le pop pour relancer l'onboarding au prochain démarrage.
     Navigator.of(context).popUntil((r) => r.isFirst);
     Navigator.of(context).pushReplacementNamed('/');
   }
 
-  void _toast(String msg) {
+  Future<void> _setLocale(Locale? locale) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(prefKeyLocale, localeToString(locale));
+    localeNotifier.value = locale;
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-    );
+    final lc = locale?.languageCode ?? Localizations.localeOf(context).languageCode;
+    final msg = lc == 'en'
+        ? AppLocalizations.of(context).settingsLanguageChangedEn
+        : AppLocalizations.of(context).settingsLanguageChangedFr;
+    SemanticsService.announce(msg, TextDirection.ltr);
   }
 
-  Future<bool?> _confirm({
-    required String title,
-    required String body,
-    required String yesLabel,
-    bool destructive = false,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          title: Text(title),
-          content: Text(body),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              style: destructive
-                  ? FilledButton.styleFrom(backgroundColor: cs.error)
-                  : null,
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(yesLabel),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _setThemeMode(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(prefKeyThemeMode, themeModeToString(mode));
+    themeNotifier.value = mode;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context);
     final s = _settings;
+    final currentLocale = localeNotifier.value;
+    final currentThemeMode = themeNotifier.value;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Paramètres'),
+        title: Text(t.settingsTitle),
         backgroundColor: theme.colorScheme.inversePrimary,
       ),
       body: s == null
@@ -225,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   _SectionHeader(
                     icon: Icons.psychology_outlined,
-                    title: 'Modèles',
+                    title: t.settingsSectionModels,
                   ),
                   ..._models.map(
                     (m) => _ModelTile(
@@ -239,35 +211,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   ListTile(
                     leading: Icon(Icons.add, color: theme.colorScheme.primary),
-                    title: const Text('Ajouter un modèle'),
-                    subtitle: const Text('.task ou .litertlm'),
+                    title: Text(t.settingsAddModelTitle),
+                    subtitle: Text(t.settingsAddModelSubtitle),
                     onTap: _addModel,
                   ),
                   const Divider(),
-                  _SectionHeader(icon: Icons.tune, title: 'Génération'),
+                  _SectionHeader(
+                    icon: Icons.tune,
+                    title: t.settingsSectionGeneration,
+                  ),
                   _SliderTile(
-                    label: 'Créativité (température)',
+                    label: t.settingsSliderCreativity,
                     valueLabel: s.temperature.toStringAsFixed(2),
                     value: s.temperature,
                     min: AppSettings.minTemperature,
                     max: AppSettings.maxTemperature,
                     divisions: 14,
                     onChanged: (v) => _update(s.copyWith(temperature: v)),
-                    helper: 'Bas = factuel et stable. Haut = créatif et varié.',
+                    helper: t.settingsSliderCreativityHelper,
                   ),
                   _SliderTile(
-                    label: 'Diversité (top-K)',
+                    label: t.settingsSliderDiversity,
                     valueLabel: s.topK.toString(),
                     value: s.topK.toDouble(),
                     min: AppSettings.minTopK.toDouble(),
                     max: AppSettings.maxTopK.toDouble(),
                     divisions: 99,
                     onChanged: (v) => _update(s.copyWith(topK: v.round())),
-                    helper:
-                        'Nombre de mots candidats considérés à chaque étape.',
+                    helper: t.settingsSliderDiversityHelper,
                   ),
                   _SliderTile(
-                    label: 'Longueur de contexte (maxTokens)',
+                    label: t.settingsSliderContext,
                     valueLabel: s.maxTokens.toString(),
                     value: s.maxTokens.toDouble(),
                     min: AppSettings.minMaxTokens.toDouble(),
@@ -275,20 +249,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     divisions: 15,
                     onChanged: (v) =>
                         _update(s.copyWith(maxTokens: (v / 256).round() * 256)),
-                    helper:
-                        'Mémoire de la conversation. Plus haut = plus de RAM consommée.',
+                    helper: t.settingsSliderContextHelper,
+                  ),
+                  const Divider(),
+                  _SectionHeader(
+                    icon: Icons.palette_outlined,
+                    title: t.settingsSectionAppearance,
+                  ),
+                  _LanguageTile(
+                    current: currentLocale,
+                    onChanged: _setLocale,
+                  ),
+                  _ThemeTile(
+                    current: currentThemeMode,
+                    onChanged: _setThemeMode,
                   ),
                   const Divider(),
                   _SectionHeader(
                     icon: Icons.security_outlined,
-                    title: 'Données et sécurité',
+                    title: t.settingsSectionDataSecurity,
                   ),
                   ListTile(
                     leading: const Icon(Icons.delete_sweep_outlined),
-                    title: const Text('Effacer les conversations'),
-                    subtitle: const Text(
-                      'Supprime l\'historique chiffré. Modèles et paramètres conservés.',
-                    ),
+                    title: Text(t.settingsClearChats),
+                    subtitle: Text(t.settingsClearChatsSubtitle),
                     onTap: _clearChats,
                   ),
                   ListTile(
@@ -297,19 +281,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: theme.colorScheme.error,
                     ),
                     title: Text(
-                      'Mode panique',
+                      t.settingsPanic,
                       style: TextStyle(color: theme.colorScheme.error),
                     ),
-                    subtitle: const Text(
-                      'Efface clé + historique + modèles + paramètres.',
-                    ),
+                    subtitle: Text(t.settingsPanicSubtitle),
                     onTap: _triggerPanic,
                   ),
                   const Divider(),
                   ListTile(
                     leading: const Icon(Icons.info_outline),
-                    title: const Text('À propos'),
-                    subtitle: const Text('Version, légal, support'),
+                    title: Text(t.settingsAbout),
+                    subtitle: Text(t.settingsAboutSubtitle),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const AboutScreen()),
                     ),
@@ -330,18 +312,119 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Row(
-        children: [
-          Icon(icon, color: cs.primary, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: cs.primary,
-              fontWeight: FontWeight.w700,
+    return Semantics(
+      header: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+        child: Row(
+          children: [
+            ExcludeSemantics(child: Icon(icon, color: cs.primary, size: 20)),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: cs.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageTile extends StatelessWidget {
+  const _LanguageTile({required this.current, required this.onChanged});
+  final Locale? current;
+  final ValueChanged<Locale?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final label = current == null
+        ? t.settingsLanguageSystem
+        : (current!.languageCode == 'en'
+            ? t.settingsLanguageEn
+            : t.settingsLanguageFr);
+    return ListTile(
+      leading: const Icon(Icons.translate),
+      title: Text(t.settingsLanguage),
+      subtitle: Text(label),
+      trailing: PopupMenuButton<String>(
+        tooltip: t.settingsLanguage,
+        icon: const Icon(Icons.expand_more),
+        onSelected: (v) {
+          switch (v) {
+            case 'system':
+              onChanged(null);
+              break;
+            case 'fr':
+              onChanged(const Locale('fr'));
+              break;
+            case 'en':
+              onChanged(const Locale('en'));
+              break;
+          }
+        },
+        itemBuilder: (_) => [
+          CheckedPopupMenuItem(
+            value: 'system',
+            checked: current == null,
+            child: Text(t.settingsLanguageSystem),
+          ),
+          CheckedPopupMenuItem(
+            value: 'fr',
+            checked: current?.languageCode == 'fr',
+            child: Text(t.settingsLanguageFr),
+          ),
+          CheckedPopupMenuItem(
+            value: 'en',
+            checked: current?.languageCode == 'en',
+            child: Text(t.settingsLanguageEn),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeTile extends StatelessWidget {
+  const _ThemeTile({required this.current, required this.onChanged});
+  final ThemeMode current;
+  final ValueChanged<ThemeMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final label = switch (current) {
+      ThemeMode.system => t.settingsThemeSystem,
+      ThemeMode.light => t.settingsThemeLight,
+      ThemeMode.dark => t.settingsThemeDark,
+    };
+    return ListTile(
+      leading: const Icon(Icons.brightness_6_outlined),
+      title: Text(t.settingsTheme),
+      subtitle: Text(label),
+      trailing: PopupMenuButton<ThemeMode>(
+        tooltip: t.settingsTheme,
+        icon: const Icon(Icons.expand_more),
+        onSelected: onChanged,
+        itemBuilder: (_) => [
+          CheckedPopupMenuItem(
+            value: ThemeMode.system,
+            checked: current == ThemeMode.system,
+            child: Text(t.settingsThemeSystem),
+          ),
+          CheckedPopupMenuItem(
+            value: ThemeMode.light,
+            checked: current == ThemeMode.light,
+            child: Text(t.settingsThemeLight),
+          ),
+          CheckedPopupMenuItem(
+            value: ThemeMode.dark,
+            checked: current == ThemeMode.dark,
+            child: Text(t.settingsThemeDark),
           ),
         ],
       ),
@@ -362,13 +445,7 @@ class _ModelTile extends StatefulWidget {
   final bool isActive;
   final VoidCallback onSetActive;
   final VoidCallback onRemove;
-
-  /// Callback déclenché après un re-calcul SHA-256 réussi (pour reload UI).
   final VoidCallback onVerified;
-
-  /// Callback déclenché quand l'utilisateur veut désactiver le modèle suite
-  /// à un mismatch SHA-256 détecté. Doit unload côté ChatService et clear
-  /// `activeModelId` si applicable, puis reload UI.
   final Future<void> Function() onDeactivate;
 
   @override
@@ -380,26 +457,25 @@ class _ModelTileState extends State<_ModelTile> {
 
   Future<void> _verify() async {
     if (_verifying) return;
+    final t = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _verifying = true);
     try {
       final file = File(widget.entry.path);
       if (!await file.exists()) {
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Fichier introuvable.'),
+          SnackBar(
+            content: Text(t.settingsHashFileNotFound),
             behavior: SnackBarBehavior.floating,
           ),
         );
         return;
       }
-      // Calcule en streaming (pas de chargement complet en RAM).
       final digest = await sha256.bind(file.openRead()).first;
       final hex = digest.toString().toLowerCase();
       if (!mounted) return;
       final stored = widget.entry.sha256;
       if (stored == null) {
-        // Première vérification : on persiste le hash recalculé.
         await ModelRegistry.instance.register(
           path: widget.entry.path,
           displayName: widget.entry.displayName,
@@ -409,17 +485,13 @@ class _ModelTileState extends State<_ModelTile> {
         );
         widget.onVerified();
         if (!mounted) return;
-        await _showHashDialog(
-          title: 'SHA-256 calculé et enregistré',
-          body: hex,
-        );
+        await _showHashDialog(title: t.settingsHashStored, body: hex);
       } else if (hex == stored) {
         await _showHashDialog(
-          title: 'Intégrité vérifiée',
-          body: 'Le SHA-256 correspond à celui enregistré :\n\n$hex',
+          title: t.settingsHashOk,
+          body: t.settingsHashOkBody(hex),
         );
       } else {
-        // Mismatch : proposer désactivation immédiate du modèle suspect.
         if (!mounted) return;
         final disable = await showDialog<bool>(
           context: context,
@@ -427,24 +499,22 @@ class _ModelTileState extends State<_ModelTile> {
             final theme = Theme.of(ctx);
             return AlertDialog(
               title: Text(
-                'SHA-256 différent !',
+                t.settingsHashMismatch,
                 style: TextStyle(color: theme.colorScheme.error),
               ),
               content: SingleChildScrollView(
                 child: SelectableText(
-                  'Le fichier a été modifié depuis l\'installation.\n\n'
-                  'Attendu : $stored\n\n'
-                  'Calculé : $hex',
+                  t.settingsHashMismatchBody(stored, hex),
                   style: const TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 12,
+                    fontSize: 13,
                   ),
                 ),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Ignorer'),
+                  child: Text(t.settingsHashIgnore),
                 ),
                 FilledButton.tonal(
                   onPressed: () => Navigator.pop(ctx, true),
@@ -452,7 +522,7 @@ class _ModelTileState extends State<_ModelTile> {
                     foregroundColor: theme.colorScheme.onErrorContainer,
                     backgroundColor: theme.colorScheme.errorContainer,
                   ),
-                  child: const Text('Désactiver ce modèle'),
+                  child: Text(t.settingsHashDeactivate),
                 ),
               ],
             );
@@ -465,7 +535,7 @@ class _ModelTileState extends State<_ModelTile> {
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Erreur de vérification : $e'),
+          content: Text(t.settingsHashVerifyError('$e')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -477,34 +547,32 @@ class _ModelTileState extends State<_ModelTile> {
   Future<void> _showHashDialog({
     required String title,
     required String body,
-    bool warning = false,
   }) async {
     if (!mounted) return;
-    final theme = Theme.of(context);
+    final t = AppLocalizations.of(context);
     await showDialog<void>(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text(
-            title,
-            style: warning
-                ? TextStyle(color: theme.colorScheme.error)
-                : null,
-          ),
-          content: SelectableText(
-            body,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          title: Text(title),
+          content: Semantics(
+            label: t.modelInstallSha256Sem,
+            readOnly: true,
+            child: SelectableText(
+              body,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () async {
                 await Clipboard.setData(ClipboardData(text: body));
               },
-              child: const Text('Copier'),
+              child: Text(t.commonCopy),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
+              child: Text(t.commonOk),
             ),
           ],
         );
@@ -516,55 +584,65 @@ class _ModelTileState extends State<_ModelTile> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final t = AppLocalizations.of(context);
     final entry = widget.entry;
     final hash = entry.sha256;
     final shortHash = hash == null
-        ? 'SHA-256 non enregistré'
-        : 'SHA-256 ${hash.substring(0, 12)}…';
-    return ListTile(
-      leading: Icon(
-        widget.isActive ? Icons.radio_button_checked : Icons.radio_button_off,
-        color: widget.isActive ? cs.primary : cs.outline,
-      ),
-      title: Text(entry.displayName),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${entry.family} · ${entry.fileType} · ${entry.sizeLabel}',
-            style: textTheme.bodySmall,
-          ),
-          Text(
-            shortHash,
-            style: textTheme.bodySmall?.copyWith(
-              color: cs.outline,
-              fontFamily: 'monospace',
+        ? t.settingsHashShortNotStored
+        : t.settingsHashShortPrefix(hash.substring(0, 12));
+    return MergeSemantics(
+      child: ListTile(
+        leading: Icon(
+          widget.isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+          color: widget.isActive ? cs.primary : cs.outline,
+        ),
+        title: Text(entry.displayName),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${entry.family} · ${entry.fileType} · ${entry.sizeLabel}',
+              style: textTheme.bodyMedium,
             ),
-          ),
-        ],
+            Text(
+              shortHash,
+              style: textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              child: IconButton(
+                icon: _verifying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.verified_outlined),
+                tooltip: t.settingsVerifyTooltip,
+                onPressed: _verifying ? null : _verify,
+              ),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              child: IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: t.settingsRemoveTooltip,
+                onPressed: widget.onRemove,
+              ),
+            ),
+          ],
+        ),
+        selected: widget.isActive,
+        onTap: widget.isActive ? null : widget.onSetActive,
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: _verifying
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.verified_outlined),
-            tooltip: 'Vérifier l\'intégrité (SHA-256)',
-            onPressed: _verifying ? null : _verify,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Retirer de la liste',
-            onPressed: widget.onRemove,
-          ),
-        ],
-      ),
-      onTap: widget.isActive ? null : widget.onSetActive,
     );
   }
 }
@@ -592,35 +670,41 @@ class _SliderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(label)),
-              Text(
-                valueLabel,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          Slider(
-            value: value.clamp(min, max),
-            min: min,
-            max: max,
-            divisions: divisions,
-            label: valueLabel,
-            onChanged: onChanged,
-          ),
-          Text(
-            helper,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
+      child: MergeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(label)),
+                Text(
+                  valueLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
-          ),
-        ],
+            Semantics(
+              value: t.settingsSliderSemantic(label, valueLabel),
+              child: Slider(
+                value: value.clamp(min, max),
+                min: min,
+                max: max,
+                divisions: divisions,
+                label: valueLabel,
+                onChanged: onChanged,
+              ),
+            ),
+            Text(
+              helper,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

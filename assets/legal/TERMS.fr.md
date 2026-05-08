@@ -1,6 +1,6 @@
 # Conditions d'utilisation — AI Tech
 
-**Version 0.4.3 — Mai 2026**
+**Version 0.6.0 — Mai 2026**
 
 ## Licence
 

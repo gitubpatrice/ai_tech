@@ -64,6 +64,20 @@ class SecretKey {
   /// d'éventuels résidus de migration de backend, on déclenche aussi
   /// [FlutterSecureStorage.deleteAll] côté zone privée de l'app.
   Future<void> wipe() async {
+    // Wipe RAM avant détachement : `_cached = null` ne suffit pas car le GC
+    // peut différer la libération du buffer. Un dump heap post-panique
+    // pourrait alors retrouver les 32 octets de clé. fillRange(0,32,0) écrase
+    // le buffer en place avant que la référence ne disparaisse.
+    final cached = _cached;
+    if (cached != null) {
+      try {
+        cached.fillRange(0, cached.length, 0);
+      } catch (_) {
+        // Uint8List peut être unmodifiable selon la source ; pas de garantie
+        // forte, le wipe RAM reste best-effort sur Dart pure (cf. memory
+        // feedback secretbytes_wipe_unmodifiable).
+      }
+    }
     _cached = null;
     try {
       await _storage.delete(key: _kSecretKey);
