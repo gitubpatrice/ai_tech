@@ -1,0 +1,32 @@
+AI Tech: a conversational AI assistant running entirely on your phone, with no Internet connection.
+
+<b>Radical privacy</b>
+• No INTERNET permission (verifiable in the manifest)
+• No account, no telemetry, no tracker
+• AES-256-GCM encrypted conversations with Android Keystore key
+• Panic mode: wipes key + history with one tap
+
+<b>Supported models</b>
+MediaPipe .task or LiteRT .litertlm format:
+• Gemma 3 1B int4 (recommended, 554 MB, 32K context, excellent in EN/FR)
+• Gemma 2 2B / Qwen 2.5 / Phi-4 / Llama 3 / DeepSeek-R1
+• Automatic family and prompt format detection
+• Generic ChatML for Qwen/Phi/Llama
+• SHA-256 verification on import
+
+<b>Performance</b>
+• Token-by-token streaming via localized ValueNotifier
+• Markdown rendered after onDone (static stylesheet cache)
+• Multiple persisted encrypted conversations
+• RAG documents: import .txt/.md files for grounding
+• Anti-prompt-injection on RAG chunks
+
+<b>i18n FR / EN</b>
+• Language picker in Settings (FR / EN / System)
+• Theme picker (Light / Dark / System)
+• Localized legal pages (PRIVACY / TERMS)
+
+<b>Open source Apache 2.0</b>
+Full source code on GitHub: gitubpatrice/ai_tech
+
+For privacy-conscious people, professionals handling sensitive data (lawyers, doctors, therapists, journalists), travelers without reliable data connections, and anyone who refuses yet another €20/month subscription.

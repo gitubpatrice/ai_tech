@@ -1,0 +1,29 @@
+v0.6.0 — May 2026
+
+i18n FR / EN
+• Complete FR / EN interface (262 ARB keys)
+• Language picker in Settings (FR / EN / System)
+• Theme picker (Light / Dark / System)
+• PRIVACY.{fr,en}.md / TERMS.{fr,en}.md legal pages
+• Gemma streaming: ExcludeSemantics + single final announce (a11y)
+
+Performance
+• ABI splits: APK -50% per device
+• Static MarkdownStyleSheet cache (brightness/fg/surface key)
+• Stable ChatMessage.id + ValueKey on ListView.builder
+• 80ms auto-scroll throttle during streaming
+
+Security
+• fillRange best-effort on master AES key before null
+• Non-localized ChatSession.defaultTitleSentinel (anti-EN-bug)
+• Markdown export escapes ^# (anti-spoofing)
+
+Extracted helpers
+• lib/utils/{relative_date, app_dialogs, snackbar_ext, file_size,
+  chat_session_label}.dart
+• lib/widgets/app_empty_state.dart (semanticHeader + excludeIconSemantics)
+• ModelFamilyUtils.fromName
+
+Quality
+• flutter analyze clean
+• Full 5-axis audit: security 96, perf 96, dup 95

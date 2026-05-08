@@ -1,0 +1,32 @@
+AI Tech : assistant IA conversationnel exécuté entièrement sur votre téléphone, sans aucune connexion Internet.
+
+<b>Confidentialité radicale</b>
+• Aucune permission INTERNET (vérifiable dans le manifeste)
+• Aucun compte, aucune télémétrie, aucun tracker
+• Conversations chiffrées AES-256-GCM avec clé Android Keystore
+• Mode panique : efface clé + historique en un appui
+
+<b>Modèles supportés</b>
+Format MediaPipe .task ou LiteRT .litertlm :
+• Gemma 3 1B int4 (recommandé, 554 Mo, 32K contexte, FR/EN excellents)
+• Gemma 2 2B / Qwen 2.5 / Phi-4 / Llama 3 / DeepSeek-R1
+• Détection automatique de la famille et du format de prompt
+• ChatML générique pour Qwen/Phi/Llama
+• Vérification SHA-256 à l'import
+
+<b>Performance</b>
+• Streaming token-par-token via ValueNotifier localisé
+• Markdown rendu après onDone (cache stylesheet static)
+• Multi-conversations persistées chiffrées
+• RAG documents : importez des .txt/.md pour grounding
+• Anti-prompt-injection sur les chunks RAG
+
+<b>i18n FR / EN</b>
+• Sélecteur Langue dans Réglages (FR / EN / Système)
+• Sélecteur Thème (Clair / Sombre / Système)
+• Pages légales (PRIVACY / TERMS) localisées
+
+<b>Open source Apache 2.0</b>
+Code source intégral sur GitHub : gitubpatrice/ai_tech
+
+Pour personnes attachées à leur vie privée, professionnels manipulant des données sensibles (avocats, médecins, thérapeutes, journalistes), voyageurs sans connexion data fiable, et tous ceux qui refusent un nouvel abonnement à 20 €/mois.
