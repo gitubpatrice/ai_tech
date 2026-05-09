@@ -1,0 +1,29 @@
+v0.6.1 — Hardening audit vulnérabilités (mai 2026)
+
+Sécurité
+• F1 — system prompt Gemma désormais formaté avec `<start_of_turn>user`
+  + `isUser:true` (Gemma 3 ne supporte pas de rôle "system" natif → le
+  modèle fold le system dans le 1er user turn). Avant : `isUser:false`
+  produisait un tour `model` à autorité affaiblie face aux injections
+  "ignore les instructions précédentes".
+• F2 — `RagService._sanitize` durci :
+  – Strip caractères zero-width / bidi (U+200B-U+200F, U+202A-U+202E,
+    U+2066-U+2069, U+FEFF) qui fragmentaient les balises (ex: `<|im‌_start|>`)
+  – Neutralise les blocs base64 longs (40+ chars) qui peuvent encoder
+    une injection que Gemma sait décoder/exécuter.
+• D8 — PanicService wipe désormais `<appSupport>/models/` (sandbox copies
+  des `.task` Gemma installés). Avant : le `.task` ~530 Mo subsistait
+  après panique → preuve d'usage Gemma ou récupération du modèle exact.
+• D9 — `EncryptedJsonStore._fileFor` whitelist `[a-zA-Z0-9_-]{1,64}` sur
+  l'ID dérivé en nom de fichier (anti path traversal futur ID exotique).
+
+Internationalisation
+• D3 — system prompt EN ajouté (variant `_systemPromptEn`) sélectionné
+  via la locale poussée par `localeNotifier` à `ChatService.setLocale`.
+  Avant : prompt FR codé en dur même pour les utilisateurs EN.
+
+Documentation
+• D1 — SECURITY.md : 0.4.x → 0.6.x supportée
+• D2 — PRIVACY.md : v0.4.3 → v0.6.1 (sync racine + assets in-app FR/EN)
+
+Tests : 17/17 passed. flutter analyze : 0 erreur, 0 warning.

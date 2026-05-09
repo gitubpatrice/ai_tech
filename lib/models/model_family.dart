@@ -92,6 +92,14 @@ class ModelFamilyUtils {
   /// Pour Qwen/Phi/Llama, on utilise `<|im_start|>system` (rôle natif ChatML)
   /// au lieu d'injecter le prompt système comme un message user — c'est plus
   /// résistant aux tentatives de prompt injection depuis le chat.
+  ///
+  /// F1 v0.6.1 — Gemma 3 ne supporte pas nativement de rôle "system" : le
+  /// modèle fold le system prompt dans le 1er turn user. On utilise donc le
+  /// template Gemma natif `<start_of_turn>user … <end_of_turn>` (le caller
+  /// passe `isUser: true` pour ce prompt sur Gemma — voir
+  /// `chat_service.applySystemPrompt`). Avant : `isUser: false` produisait
+  /// un tour `model` avec autorité affaiblie face aux injections
+  /// "ignore les instructions précédentes".
   static String formatSystemPrompt(String text, ModelFamily family) {
     switch (family) {
       case ModelFamily.qwen:
@@ -100,10 +108,30 @@ class ModelFamilyUtils {
         return '<|im_start|>system\n$text<|im_end|>\n';
       case ModelFamily.gemma:
       case ModelFamily.auto:
-        // flutter_gemma applique le template Gemma natif en interne.
-        return text;
+        // F1 — délimiteur Gemma natif. flutter_gemma 0.14.x reconnaît
+        // les balises `<start_of_turn>` / `<end_of_turn>` en formattage
+        // additionnel. Le caller doit envoyer ce texte avec `isUser:true`
+        // car Gemma 3 traite le 1er user turn comme contenant les
+        // instructions effectives (pas de rôle `system` séparé).
+        return '<start_of_turn>user\n$text<end_of_turn>\n';
       case ModelFamily.deepseek:
         return '<｜begin▁of▁sentence｜>$text';
+    }
+  }
+
+  /// F1 v0.6.1 — détermine si `Message.text` doit être marqué `isUser:true`
+  /// pour le prompt système. Sur Gemma, OUI (1er user turn = instructions).
+  /// Sur les autres familles, NON (rôle `system` natif via tag).
+  static bool systemPromptIsUser(ModelFamily family) {
+    switch (family) {
+      case ModelFamily.gemma:
+      case ModelFamily.auto:
+        return true;
+      case ModelFamily.qwen:
+      case ModelFamily.phi:
+      case ModelFamily.llama:
+      case ModelFamily.deepseek:
+        return false;
     }
   }
 }

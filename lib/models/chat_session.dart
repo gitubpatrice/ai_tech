@@ -86,10 +86,12 @@ class ChatSession {
   /// Vrai si le titre est encore le sentinel par défaut (jamais personnalisé
   /// ni dérivé d'un message). Permet aux écrans de localiser l'affichage.
   bool get isDefaultTitle =>
-      title.isEmpty || title == defaultTitleSentinel ||
+      title.isEmpty ||
+      title == defaultTitleSentinel ||
       // Compatibilité descendante : sessions persistées avant l'introduction
       // du sentinel non-localisé peuvent contenir l'ancien défaut FR.
-      title == 'Nouvelle conversation' || title == 'Conversation';
+      title == 'Nouvelle conversation' ||
+      title == 'Conversation';
 
   /// Renvoie un titre court dérivé du premier message utilisateur, ou
   /// `title` si déjà personnalisé. Lève si le titre est par défaut et

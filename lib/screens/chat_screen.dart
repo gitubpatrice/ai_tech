@@ -74,7 +74,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (hasContent) {
         try {
           await EncryptedChatStore.instance.save(_session);
-        } catch (_) {/* best-effort */}
+        } catch (_) {
+          /* best-effort */
+        }
       }
     } else if (state == AppLifecycleState.inactive) {
       _persistIfNeeded();
@@ -391,7 +393,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       ..writeln();
     for (final m in completed) {
       buf
-        ..writeln(m.isUser ? t.chatExportSpeakerUser : t.chatExportSpeakerAssistant)
+        ..writeln(
+          m.isUser ? t.chatExportSpeakerUser : t.chatExportSpeakerAssistant,
+        )
         ..writeln(_escapeMarkdownExport(m.text))
         ..writeln();
     }
@@ -449,7 +453,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // qu'une exception async (disk full, Keystore lock, AAD fail) remonte en
     // unhandledError zone si l'écran est déjà popped quand la save échoue.
     unawaited(
-      EncryptedChatStore.instance.save(_session).catchError((_) {/* best-effort */}),
+      EncryptedChatStore.instance.save(_session).catchError((_) {
+        /* best-effort */
+      }),
     );
   }
 
@@ -540,9 +546,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 case 'spike':
                   Navigator.of(context)
                       .push(
-                        MaterialPageRoute(
-                          builder: (_) => const SpikeScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const SpikeScreen()),
                       )
                       .then((_) => _reloadChatAfterSpike());
                   break;
@@ -669,9 +673,7 @@ class _NoModelState extends StatelessWidget {
         onPressed: onOpenSettings,
         icon: const Icon(Icons.settings),
         label: Text(t.chatNoModelOpenSettings),
-        style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
-        ),
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
       ),
     );
   }
@@ -735,7 +737,10 @@ class _ErrorState extends StatelessWidget {
               header: true,
               child: Text(
                 t.chatStatusLoadFailed,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -1012,7 +1017,11 @@ class _Bubble extends StatelessWidget {
   static final Map<int, MarkdownStyleSheet> _styleSheetCache = {};
 
   static MarkdownStyleSheet _styleSheetFor(ThemeData theme, Color fg) {
-    final key = Object.hash(theme.brightness, fg.toARGB32(), theme.colorScheme.surface.toARGB32());
+    final key = Object.hash(
+      theme.brightness,
+      fg.toARGB32(),
+      theme.colorScheme.surface.toARGB32(),
+    );
     final cached = _styleSheetCache[key];
     if (cached != null) return cached;
     final ss = MarkdownStyleSheet.fromTheme(theme).copyWith(
@@ -1048,7 +1057,10 @@ class _Bubble extends StatelessWidget {
     if (text.isEmpty) return;
     final t = AppLocalizations.of(context);
     Clipboard.setData(ClipboardData(text: text));
-    context.showFloatingSnack(t.chatCopySnack, duration: const Duration(seconds: 1));
+    context.showFloatingSnack(
+      t.chatCopySnack,
+      duration: const Duration(seconds: 1),
+    );
   }
 }
 
@@ -1087,7 +1099,10 @@ class _SourcesRow extends StatelessWidget {
                 onTap: () => _show(context, s),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: fg.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),

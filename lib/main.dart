@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/chat_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/chat_service.dart';
 import 'services/rag/rag_service.dart';
 import 'services/storage/app_settings_store.dart';
 
@@ -119,44 +120,54 @@ class _AiTechAppState extends State<AiTechApp> {
       valueListenable: themeNotifier,
       builder: (_, themeMode, _) => ValueListenableBuilder<Locale?>(
         valueListenable: localeNotifier,
-        builder: (_, locale, _) => MaterialApp(
-          title: 'AI Tech',
-          debugShowCheckedModeBanner: false,
-          themeMode: themeMode,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.indigo,
-              brightness: Brightness.light,
+        builder: (_, locale, _) {
+          // F1/D3 v0.6.1 — propage la locale au ChatService pour qu'il
+          // sélectionne le system prompt FR ou EN au prochain unloadModel
+          // → installAndLoad. Pour les sessions actives, la mise à jour
+          // prend effet lors du prochain reset/swap.
+          ChatService.instance.setLocale(
+            locale?.languageCode ??
+                WidgetsBinding.instance.platformDispatcher.locale.languageCode,
+          );
+          return MaterialApp(
+            title: 'AI Tech',
+            debugShowCheckedModeBanner: false,
+            themeMode: themeMode,
+            theme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.indigo,
+                brightness: Brightness.light,
+              ),
             ),
-          ),
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.indigo,
-              brightness: Brightness.dark,
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.indigo,
+                brightness: Brightness.dark,
+              ),
             ),
-          ),
-          locale: locale,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routes: {
-            '/': (_) => FutureBuilder<bool>(
-              future: _firstLaunchDone,
-              builder: (ctx, snap) {
-                if (!snap.hasData) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                if (!snap.data!) {
-                  return OnboardingScreen(onCompleted: _refresh);
-                }
-                return const ChatScreen();
-              },
-            ),
-          },
-        ),
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routes: {
+              '/': (_) => FutureBuilder<bool>(
+                future: _firstLaunchDone,
+                builder: (ctx, snap) {
+                  if (!snap.hasData) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (!snap.data!) {
+                    return OnboardingScreen(onCompleted: _refresh);
+                  }
+                  return const ChatScreen();
+                },
+              ),
+            },
+          );
+        },
       ),
     );
   }

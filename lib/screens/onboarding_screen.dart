@@ -281,7 +281,9 @@ class _ImportStep extends StatelessWidget {
                             )
                           : const Icon(Icons.upload_file),
                       label: Text(
-                        busy ? t.onboardingImportSaving : t.onboardingImportSelectAction,
+                        busy
+                            ? t.onboardingImportSaving
+                            : t.onboardingImportSelectAction,
                       ),
                     ),
                   ),
@@ -318,9 +320,7 @@ class _Feature extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ExcludeSemantics(
-              child: Icon(icon, color: cs.primary, size: 22),
-            ),
+            ExcludeSemantics(child: Icon(icon, color: cs.primary, size: 22)),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

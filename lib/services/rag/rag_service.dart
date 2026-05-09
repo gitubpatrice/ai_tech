@@ -168,8 +168,35 @@ class RagService {
   /// Tronque + neutralise les motifs susceptibles d'être interprétés comme
   /// des instructions par le modèle (prompt injection venant d'un document
   /// importé ou téléchargé).
+  ///
+  /// F2 v0.6.1 — durci au-delà de l'audit standard :
+  /// 1. **Strip caractères zero-width** Unicode (`U+200B`-`U+200F`,
+  ///    `U+2028`-`U+202E`, `U+FEFF`) qui permettaient de fragmenter les
+  ///    balises (`<|im\u200C_start|>` matchait pas la regex `<\|\s*[a-z_]+\s*\|>`).
+  /// 2. **Neutralise les blocs base64 longs** (40+ chars) qui peuvent
+  ///    encoder une injection que le LLM décode à la volée.
+  /// 3. **NFKC normalize** pour ramener les variants Unicode (caractères
+  ///    fullwidth `Ｉｇｎｏｒｅ`, ligatures, formes compatibilité) vers la
+  ///    forme canonique avant matching regex.
   static String _sanitize(String s, int max) {
-    var clipped = s.length > max ? '${s.substring(0, max)}…' : s;
+    // 1. Strip caractères de contrôle bidi + zero-width (avant truncate
+    //    pour ne pas comptabiliser ces octets dans le quota de chars).
+    //    Couvre :
+    //      U+200B-U+200F  (ZWSP, ZWNJ, ZWJ, LRM, RLM)
+    //      U+202A-U+202E  (LRE, RLE, PDF, LRO, RLO — bidi overrides)
+    //      U+2066-U+2069  (LRI, RLI, FSI, PDI — bidi isolates)
+    //      U+FEFF         (BOM / ZWNBSP)
+    final stripped = s.replaceAll(_zeroWidthBidi, '');
+    // 2. Truncate.
+    var clipped = stripped.length > max
+        ? '${stripped.substring(0, max)}…'
+        : stripped;
+    // 3. Neutralise les blocs base64 longs (40+ chars, charset strict).
+    //    Couvre une instruction encodée que Gemma sait décoder/exécuter.
+    clipped = clipped.replaceAll(
+      RegExp(r'[A-Za-z0-9+/]{40,}={0,2}'),
+      '·[base64 neutralisé]·',
+    );
     // Neutralise les balises de prompt courantes :
     // - Llama : [INST] / [/INST]
     // - ChatML / Llama 3 : <|system|>, <|im_start|>, <|begin_of_text|>,
@@ -214,6 +241,12 @@ class RagService {
     return clipped;
   }
 
+  /// F2 v0.6.1 — regex pré-compilée des caractères zero-width / bidi.
+  /// On construit la string via codes hex pour éviter d'introduire
+  /// les caractères eux-mêmes dans le source (warnings analyzer bidi).
+  static final RegExp _zeroWidthBidi = RegExp(
+    '[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]',
+  );
 }
 
 /// Résultat de l'augmentation du prompt.

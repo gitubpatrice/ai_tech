@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'chat_service.dart';
 import 'crypto/secret_key.dart';
@@ -66,6 +69,21 @@ class PanicService {
       } catch (_) {
         /* on continue */
       }
+    }
+
+    // D8 v0.6.1 — wipe du sandbox `<appSupport>/models/` créé par
+    // `ModelInstaller` (copies sandbox des `.task` Gemma installés).
+    // Sans ça, le fichier `gemma3-1b-it-int4.task` (~530 Mo) subsistait
+    // après panique — l'attaquant peut prouver que Gemma était installé
+    // ou récupérer le modèle exact si jamais il est retiré du store.
+    try {
+      final dir = await getApplicationSupportDirectory();
+      final modelsDir = Directory('${dir.path}/models');
+      if (await modelsDir.exists()) {
+        await modelsDir.delete(recursive: true);
+      }
+    } catch (_) {
+      /* best-effort */
     }
 
     // 7. Clé AES en dernier — sans elle, plus rien ne peut être déchiffré

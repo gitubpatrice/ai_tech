@@ -312,12 +312,24 @@ class _MetricsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            _row(t.spikeMetricFirstToken, t.spikeMetricFirstTokenValue(result.firstTokenMs)),
-            _row(t.spikeMetricTotalDuration, t.spikeMetricFirstTokenValue(result.totalMs)),
+            _row(
+              t.spikeMetricFirstToken,
+              t.spikeMetricFirstTokenValue(result.firstTokenMs),
+            ),
+            _row(
+              t.spikeMetricTotalDuration,
+              t.spikeMetricFirstTokenValue(result.totalMs),
+            ),
             _row(t.spikeMetricTokens, '${result.tokenCount}'),
             _row(t.spikeMetricChars, '${result.charCount}'),
-            _row(t.spikeMetricTokensPerSec, result.tokensPerSecond.toStringAsFixed(2)),
-            _row(t.spikeMetricCharsPerSec, result.charsPerSecond.toStringAsFixed(1)),
+            _row(
+              t.spikeMetricTokensPerSec,
+              result.tokensPerSecond.toStringAsFixed(2),
+            ),
+            _row(
+              t.spikeMetricCharsPerSec,
+              result.charsPerSecond.toStringAsFixed(1),
+            ),
           ],
         ),
       ),

@@ -104,9 +104,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (size > _maxBytes) {
       if (mounted) {
         context.showFloatingSnack(
-          t.documentsTooLarge(
-            '${(size / 1024 / 1024).toStringAsFixed(2)} Mo',
-          ),
+          t.documentsTooLarge('${(size / 1024 / 1024).toStringAsFixed(2)} Mo'),
         );
       }
       return;

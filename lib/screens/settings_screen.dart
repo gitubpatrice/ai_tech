@@ -163,7 +163,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setString(prefKeyLocale, localeToString(locale));
     localeNotifier.value = locale;
     if (!mounted) return;
-    final lc = locale?.languageCode ?? Localizations.localeOf(context).languageCode;
+    final lc =
+        locale?.languageCode ?? Localizations.localeOf(context).languageCode;
     final msg = lc == 'en'
         ? AppLocalizations.of(context).settingsLanguageChangedEn
         : AppLocalizations.of(context).settingsLanguageChangedFr;
@@ -256,10 +257,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.palette_outlined,
                     title: t.settingsSectionAppearance,
                   ),
-                  _LanguageTile(
-                    current: currentLocale,
-                    onChanged: _setLocale,
-                  ),
+                  _LanguageTile(current: currentLocale, onChanged: _setLocale),
                   _ThemeTile(
                     current: currentThemeMode,
                     onChanged: _setThemeMode,
@@ -345,8 +343,8 @@ class _LanguageTile extends StatelessWidget {
     final label = current == null
         ? t.settingsLanguageSystem
         : (current!.languageCode == 'en'
-            ? t.settingsLanguageEn
-            : t.settingsLanguageFr);
+              ? t.settingsLanguageEn
+              : t.settingsLanguageFr);
     return ListTile(
       leading: const Icon(Icons.translate),
       title: Text(t.settingsLanguage),
@@ -505,10 +503,7 @@ class _ModelTileState extends State<_ModelTile> {
               content: SingleChildScrollView(
                 child: SelectableText(
                   t.settingsHashMismatchBody(stored, hex),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
                 ),
               ),
               actions: [

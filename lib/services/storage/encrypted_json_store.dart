@@ -89,7 +89,20 @@ abstract class EncryptedJsonStore<T> {
     return dir;
   }
 
+  /// D9 v0.6.1 — whitelist stricte du nom de fichier dérivé de l'ID.
+  /// Refuse tout caractère hors `[a-zA-Z0-9_-]` ou ID vide / trop long.
+  /// Sans ça, un futur ID exotique avec `/`, `..`, NULL byte ou caractère
+  /// de contrôle bidi écrirait hors du sous-dossier (path traversal).
+  static final RegExp _safeIdPattern = RegExp(r'^[a-zA-Z0-9_-]{1,64}$');
+
   Future<File> _fileFor(String id) async {
+    if (!_safeIdPattern.hasMatch(id)) {
+      throw ArgumentError.value(
+        id,
+        'id',
+        'ID invalide (whitelist [a-zA-Z0-9_-]{1,64}).',
+      );
+    }
     final dir = await _directory();
     return File('${dir.path}/$id$fileExtension');
   }
@@ -181,12 +194,7 @@ abstract class EncryptedJsonStore<T> {
     final key = await SecretKey.instance.getOrCreate();
     final raws = await compute(
       _decryptAllIsolate,
-      _ListJob(
-        paths: paths,
-        key: key,
-        magic: _magic,
-        extension: fileExtension,
-      ),
+      _ListJob(paths: paths, key: key, magic: _magic, extension: fileExtension),
     );
     final items = raws.map(fromJson).toList()..sort(compareDesc);
     return items;

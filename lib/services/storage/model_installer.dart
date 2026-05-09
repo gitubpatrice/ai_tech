@@ -63,10 +63,14 @@ class ModelInstaller {
         if (entity is File && entity.path.endsWith('.tmp')) {
           try {
             entity.deleteSync();
-          } catch (_) {/* best-effort */}
+          } catch (_) {
+            /* best-effort */
+          }
         }
       }
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   }
 
   /// Copie [sourcePath] vers `<appSupport>/models/[filename]` en streaming,
@@ -124,12 +128,7 @@ class ModelInstaller {
         if (copied - lastYielded >= _yieldEveryBytes || copied == total) {
           await output.flush();
           lastYielded = copied;
-          yield (
-            copied: copied,
-            total: total,
-            finalPath: null,
-            sha256: null,
-          );
+          yield (copied: copied, total: total, finalPath: null, sha256: null);
         }
       }
       await output.flush();
@@ -139,10 +138,14 @@ class ModelInstaller {
     } catch (_) {
       try {
         if (!closed) await output.close();
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
       try {
         if (tmp.existsSync()) tmp.deleteSync();
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
       rethrow;
     }
 
@@ -154,16 +157,13 @@ class ModelInstaller {
     if (dest.existsSync()) {
       try {
         dest.deleteSync();
-      } catch (_) {/* best-effort */}
+      } catch (_) {
+        /* best-effort */
+      }
     }
     await tmp.rename(destPath);
 
-    yield (
-      copied: total,
-      total: total,
-      finalPath: destPath,
-      sha256: hashHex,
-    );
+    yield (copied: total, total: total, finalPath: destPath, sha256: hashHex);
   }
 
   /// Garde uniquement le basename + caractères safe.
@@ -190,4 +190,3 @@ class ModelInstaller {
     return safe;
   }
 }
-

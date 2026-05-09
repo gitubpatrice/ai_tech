@@ -14,6 +14,5 @@ class ModelLimits {
   static const int minModelBytes = 50 * 1024 * 1024;
 
   /// Format humain (`'50 Mo'`) pour les messages d'erreur.
-  static String get minModelLabel =>
-      '${minModelBytes ~/ (1024 * 1024)} Mo';
+  static String get minModelLabel => '${minModelBytes ~/ (1024 * 1024)} Mo';
 }

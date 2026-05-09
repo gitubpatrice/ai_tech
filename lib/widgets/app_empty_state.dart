@@ -45,7 +45,9 @@ class AppEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            excludeIconSemantics ? ExcludeSemantics(child: iconWidget) : iconWidget,
+            excludeIconSemantics
+                ? ExcludeSemantics(child: iconWidget)
+                : iconWidget,
             const SizedBox(height: 12),
             semanticHeader
                 ? Semantics(header: true, child: titleWidget)
@@ -54,10 +56,7 @@ class AppEmptyState extends StatelessWidget {
               const SizedBox(height: 8),
               Text(subtitle!, textAlign: TextAlign.center),
             ],
-            if (action != null) ...[
-              const SizedBox(height: 16),
-              action!,
-            ],
+            if (action != null) ...[const SizedBox(height: 16), action!],
           ],
         ),
       ),

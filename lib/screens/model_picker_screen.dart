@@ -22,8 +22,7 @@ class ModelPickerScreen extends StatelessWidget {
 
   static const _kaggleUrl =
       'https://www.kaggle.com/models/google/gemma-3/tfLite/gemma-3-1b-it-int4';
-  static const _hfUrl =
-      'https://huggingface.co/litert-community/Gemma3-1B-IT';
+  static const _hfUrl = 'https://huggingface.co/litert-community/Gemma3-1B-IT';
 
   /// Renvoie le résultat (path + sha256) ou null si l'utilisateur annule.
   static Future<PickedModel?> pick(BuildContext context) {
@@ -107,7 +106,8 @@ class ModelPickerScreen extends StatelessWidget {
         withData: false,
       );
     } catch (e) {
-      if (context.mounted) context.showFloatingSnack(t.modelPickerSysError('$e'));
+      if (context.mounted)
+        context.showFloatingSnack(t.modelPickerSysError('$e'));
       return;
     }
     final picked0 = picked?.files.isNotEmpty == true
@@ -248,8 +248,11 @@ class ModelPickerScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.lightbulb_outline,
-                              size: 18, color: cs.primary),
+                          Icon(
+                            Icons.lightbulb_outline,
+                            size: 18,
+                            color: cs.primary,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             t.modelPickerRecommendation,
@@ -302,7 +305,11 @@ class ModelPickerScreen extends StatelessWidget {
 }
 
 class _StepRow extends StatelessWidget {
-  const _StepRow({required this.n, required this.title, required this.subtitle});
+  const _StepRow({
+    required this.n,
+    required this.title,
+    required this.subtitle,
+  });
 
   final String n;
   final String title;
@@ -501,10 +508,7 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
                 readOnly: true,
                 child: SelectableText(
                   _sha256!,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
                 ),
               ),
             ),
@@ -542,9 +546,7 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
         else
           FilledButton(
             onPressed: () => _finish(
-              _finalPath == null
-                  ? null
-                  : (path: _finalPath!, sha256: _sha256),
+              _finalPath == null ? null : (path: _finalPath!, sha256: _sha256),
             ),
             child: Text(t.commonContinue),
           ),

@@ -1,0 +1,29 @@
+v0.6.1 — Audit hardening (May 2026)
+
+Security
+• F1 — Gemma system prompt now formatted with `<start_of_turn>user`
+  + `isUser:true` (Gemma 3 has no native "system" role → the model
+  folds system into the 1st user turn). Before: `isUser:false` produced
+  a `model` turn with weakened authority against "ignore previous
+  instructions" prompt injections.
+• F2 — `RagService._sanitize` hardened:
+  – Strip zero-width / bidi characters (U+200B-U+200F, U+202A-U+202E,
+    U+2066-U+2069, U+FEFF) that fragmented tags (e.g. `<|im‌_start|>`)
+  – Neutralize long base64 blocks (40+ chars) that may encode an
+    injection Gemma can decode/execute on the fly.
+• D8 — PanicService now wipes `<appSupport>/models/` (sandbox copies
+  of installed Gemma `.task` files). Before: the ~530 MB `.task` file
+  survived panic → proof of Gemma usage or exact model recovery.
+• D9 — `EncryptedJsonStore._fileFor` whitelist `[a-zA-Z0-9_-]{1,64}` on
+  the ID-derived filename (anti path traversal for future exotic IDs).
+
+Internationalization
+• D3 — EN system prompt added (`_systemPromptEn` variant) selected via
+  the locale pushed by `localeNotifier` to `ChatService.setLocale`.
+  Before: hardcoded FR prompt even for EN users.
+
+Documentation
+• D1 — SECURITY.md: 0.4.x → 0.6.x supported
+• D2 — PRIVACY.md: v0.4.3 → v0.6.1 (root + in-app FR/EN assets sync)
+
+Tests: 17/17 passed. flutter analyze: 0 errors, 0 warnings.
