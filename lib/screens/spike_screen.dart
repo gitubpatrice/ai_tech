@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import '../models/bench_result.dart';
 import '../services/bench_service.dart';
 import '../services/chat_service.dart';
 import '../services/llm_service.dart';
+import '../utils/model_magic.dart';
 
 /// Écran de spike technique pour AI Tech.
 class SpikeScreen extends StatefulWidget {
@@ -54,7 +57,20 @@ class _SpikeScreenState extends State<SpikeScreen> {
     );
     final path = picked?.files.single.path;
     if (path == null) return;
-    if (!path.toLowerCase().endsWith('.task')) {
+    final lower = path.toLowerCase();
+    if (!lower.endsWith('.task') && !lower.endsWith('.litertlm')) {
+      _setStatus(t.spikeWrongFormat);
+      return;
+    }
+    // v0.8.0 — defense-in-depth : reject les renames opportunistes même
+    // dans le bench (dev/QA). Cohérent avec model_picker_screen.
+    try {
+      final head = await File(path).openRead(0, 32).first;
+      if (looksLikeKnownNonModel(head)) {
+        _setStatus(t.spikeWrongFormat);
+        return;
+      }
+    } catch (_) {
       _setStatus(t.spikeWrongFormat);
       return;
     }

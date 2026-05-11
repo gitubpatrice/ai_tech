@@ -117,7 +117,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       style: theme.textTheme.bodySmall,
                     ),
                     trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
+                      // v0.8.0 — corbeille rouge pour visibilité destructive.
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: theme.colorScheme.error,
+                      ),
                       tooltip: t.commonDelete,
                       onPressed: () => _delete(s),
                     ),

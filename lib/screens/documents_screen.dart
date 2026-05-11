@@ -319,7 +319,11 @@ class _DocTile extends StatelessWidget {
         subtitle: Text('$chars · $when', style: theme.textTheme.bodySmall),
         trailing: IconButton(
           tooltip: t.commonDelete,
-          icon: const Icon(Icons.delete_outline),
+          // v0.8.0 — corbeille rouge pour visibilité destructive.
+          icon: Icon(
+            Icons.delete_outline,
+            color: theme.colorScheme.error,
+          ),
           onPressed: onDelete,
         ),
       ),

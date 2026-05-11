@@ -52,6 +52,18 @@ class PanicService {
       /* on continue */
     }
 
+    // v0.8.0 (L2) — Clé AES EN PREMIER : sans elle, plus rien ne peut être
+    // déchiffré (chats .aichat, documents .aidoc, settings). C'est le
+    // wipe le plus rapide (~1ms) et celui qui doit survivre à un
+    // force-stop pendant les wipes longs (modèles `.litertlm` 6 Go).
+    // Avant v0.8.0, la clé était wipe en dernier — un attaquant qui
+    // interrompt l'app pendant le wipe modèles gardait clé + chats intacts.
+    try {
+      await SecretKey.instance.wipe();
+    } catch (_) {
+      /* on continue */
+    }
+
     // 3, 4, 5, 6. Wipe stockages — chaque échec n'arrête pas la suite.
     final wipes = <Future<void> Function()>[
       // RagService.wipeAll efface l'index RAM ET les .aidoc chiffrés.
@@ -72,10 +84,10 @@ class PanicService {
     }
 
     // D8 v0.6.1 — wipe du sandbox `<appSupport>/models/` créé par
-    // `ModelInstaller` (copies sandbox des `.task` Gemma installés).
-    // Sans ça, le fichier `gemma3-1b-it-int4.task` (~530 Mo) subsistait
-    // après panique — l'attaquant peut prouver que Gemma était installé
-    // ou récupérer le modèle exact si jamais il est retiré du store.
+    // `ModelInstaller` (copies sandbox des `.task` Gemma installés et des
+    // `.litertlm` Gemma 4). Sans ça, les fichiers ~500 Mo à 6 Go
+    // subsistent après panique — l'attaquant peut prouver quels modèles
+    // étaient installés ou récupérer un modèle exact.
     try {
       final dir = await getApplicationSupportDirectory();
       final modelsDir = Directory('${dir.path}/models');
@@ -84,14 +96,6 @@ class PanicService {
       }
     } catch (_) {
       /* best-effort */
-    }
-
-    // 7. Clé AES en dernier — sans elle, plus rien ne peut être déchiffré
-    //    même si une copie d'un .aichat traîne.
-    try {
-      await SecretKey.instance.wipe();
-    } catch (_) {
-      /* on continue */
     }
   }
 }

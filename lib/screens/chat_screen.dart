@@ -19,6 +19,7 @@ import '../services/storage/encrypted_chat_store.dart';
 import '../services/storage/model_registry.dart';
 import '../utils/app_dialogs.dart';
 import '../utils/chat_session_label.dart';
+import '../utils/latex_to_unicode.dart';
 import '../utils/snackbar_ext.dart';
 import '../widgets/app_empty_state.dart';
 import 'about_screen.dart';
@@ -191,9 +192,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _bootError = null;
     });
     try {
+      // v0.8.0 (M-A3) — re-détection systématique au load : si l'utilisateur
+      // a écrasé son `.task` Gemma 3 par un Gemma 4 sans repasser par le
+      // picker, `entry.family` reste figé en 'gemma' → template Gemma 3
+      // appliqué sur Gemma 4 = gibberish. La re-detect par nom de fichier
+      // garde l'override manuel (entry.family != 'auto') si présent.
+      final stored = ModelFamilyUtils.fromName(entry.family);
+      final detected = ModelFamilyUtils.detectFamily(entry.path);
+      // Si la stored est 'gemma' (cas typique pré-upgrade ou register
+      // ancien) et que la detect actuelle pointe vers 'gemma4', on
+      // privilégie la detect actuelle.
+      final family = (stored == ModelFamily.gemma &&
+              detected == ModelFamily.gemma4)
+          ? detected
+          : stored;
       await _chat.installAndLoad(
         entry.path,
-        family: ModelFamilyUtils.fromName(entry.family),
+        family: family,
         maxTokens: settings.maxTokens,
         temperature: settings.temperature,
         topK: settings.topK,
@@ -434,7 +449,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_chat.isLoaded) return;
     setState(() => _modelLoading = true);
     try {
-      final ok = await _chat.ensureLoaded();
+      // v0.7.0 (H1) — passe expectedPath pour détecter une désynchro
+      // entre _lastModelPath de ChatService et l'activeModel courant
+      // (ex. user a changé de modèle dans Settings pendant qu'on était
+      // dans Spike). Si désynchro → ensureLoaded retourne false et on
+      // recharge explicitement le bon modèle.
+      final ok = await _chat.ensureLoaded(expectedPath: _activeModel!.path);
       if (!ok && mounted) {
         await _loadActiveModel(_activeModel!, _settings);
         return;
@@ -516,7 +536,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
           IconButton(
             tooltip: t.chatTooltipDelete,
-            icon: const Icon(Icons.delete_sweep_outlined),
+            // v0.8.0 — corbeille rouge pour visibilité de l'action destructive.
+            icon: Icon(
+              Icons.delete_sweep_outlined,
+              color: Theme.of(context).colorScheme.error,
+            ),
             onPressed: _generating || _session.messages.isEmpty
                 ? null
                 : _clearConversation,
@@ -911,12 +935,16 @@ class _Bubble extends StatelessWidget {
     // éviter que TalkBack ne lise le texte complet à chaque token (spam
     // sonore ininterrompu). L'annonce finale est faite par _send onDone via
     // SemanticsService.announce.
+    // v0.8.0 — applique latexToUnicode pendant le streaming AUSSI : sinon
+    // l'utilisateur voit `$\text{H}_2\text{O}$` brut tant que la phrase
+    // n'est pas terminée. Pour les messages user (isUser:true) on ne
+    // touche pas (texte brut affiché tel quel).
     final Widget body = stream != null
         ? ExcludeSemantics(
             child: ValueListenableBuilder<String>(
               valueListenable: stream,
               builder: (_, value, _) => SelectableText(
-                value.isEmpty ? '…' : value,
+                value.isEmpty ? '…' : latexToUnicode(value),
                 style: TextStyle(color: fg, height: 1.35),
               ),
             ),
@@ -997,8 +1025,11 @@ class _Bubble extends StatelessWidget {
       return SelectableText(text, style: TextStyle(color: fg, height: 1.35));
     }
     final theme = Theme.of(context);
+    // v0.8.0 — convertit LaTeX → Unicode AVANT MarkdownBody (qui ne sait
+    // pas rendre les formules math). Couvre $\text{H}_2\text{O}$ → H₂O,
+    // $E = mc^2$ → E = mc², $\alpha$ → α, etc.
     return MarkdownBody(
-      data: text,
+      data: latexToUnicode(text),
       selectable: true,
       shrinkWrap: true,
       styleSheet: _styleSheetFor(theme, fg),

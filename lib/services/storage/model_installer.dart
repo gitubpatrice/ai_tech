@@ -55,6 +55,19 @@ class ModelInstaller {
     return dir;
   }
 
+  /// v0.8.0 — purge des `.tmp` orphelins du sandbox `<appSupport>/models/`.
+  /// À appeler au boot dans `main()` pour libérer l'espace disque accumulé
+  /// par d'éventuels crashes pendant un import (sinon les `.tmp` ne sont
+  /// nettoyés qu'au prochain import — possiblement jamais). Idempotent.
+  Future<void> cleanupOrphanTmp() async {
+    try {
+      final dir = await _modelsDir();
+      await _cleanupTempFiles(dir);
+    } catch (_) {
+      /* best-effort, ne doit pas bloquer le boot */
+    }
+  }
+
   /// Nettoie les `.tmp` orphelins (crash / annulation pendant une copie).
   Future<void> _cleanupTempFiles(Directory modelsDir) async {
     if (!modelsDir.existsSync()) return;
@@ -186,6 +199,14 @@ class ModelInstaller {
     var safe = buf.toString();
     if (safe.isEmpty || safe == '.' || safe == '..') {
       safe = 'model.task';
+    }
+    // v0.8.0 — defense-in-depth : garantit que le nom final se termine bien
+    // par `.task` ou `.litertlm`. Bloque les doubles extensions
+    // ("evil.task.exe") qui pourraient passer la whitelist regex et créer
+    // un fichier exécutable dans le sandbox app.
+    final lower = safe.toLowerCase();
+    if (!lower.endsWith('.task') && !lower.endsWith('.litertlm')) {
+      safe = '$safe.task';
     }
     return safe;
   }

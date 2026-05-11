@@ -268,7 +268,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: t.settingsSectionDataSecurity,
                   ),
                   ListTile(
-                    leading: const Icon(Icons.delete_sweep_outlined),
+                    // v0.8.0 — corbeille rouge pour visibilité destructive.
+                    leading: Icon(
+                      Icons.delete_sweep_outlined,
+                      color: theme.colorScheme.error,
+                    ),
                     title: Text(t.settingsClearChats),
                     subtitle: Text(t.settingsClearChatsSubtitle),
                     onTap: _clearChats,
@@ -596,7 +600,8 @@ class _ModelTileState extends State<_ModelTile> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${entry.family} · ${entry.fileType} · ${entry.sizeLabel}',
+              '${ModelFamilyUtils.displayLabelFromName(entry.family)} · '
+              '${entry.fileType} · ${entry.sizeLabel}',
               style: textTheme.bodyMedium,
             ),
             Text(
@@ -628,7 +633,11 @@ class _ModelTileState extends State<_ModelTile> {
             ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
               child: IconButton(
-                icon: const Icon(Icons.delete_outline),
+                // v0.8.0 — corbeille rouge pour visibilité destructive.
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 tooltip: t.settingsRemoveTooltip,
                 onPressed: widget.onRemove,
               ),

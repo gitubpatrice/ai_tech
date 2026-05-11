@@ -10,6 +10,7 @@ import 'screens/onboarding_screen.dart';
 import 'services/chat_service.dart';
 import 'services/rag/rag_service.dart';
 import 'services/storage/app_settings_store.dart';
+import 'services/storage/model_installer.dart';
 
 /// Notifier global du mode de thème (clair / sombre / système).
 /// Persisté en SharedPreferences sous [prefKeyThemeMode].
@@ -69,6 +70,11 @@ Future<void> main() async {
   // Lance le chargement de l'index RAG persisté en tâche de fond (silencieux
   // si vide). Pas de `await` ici pour ne pas bloquer le démarrage de l'UI.
   unawaited(RagService.instance.bootstrap());
+
+  // v0.8.0 — purge des `.tmp` orphelins du sandbox modèles (crash pendant
+  // un import laisse des fichiers ~Go non nettoyés). En tâche de fond.
+  unawaited(ModelInstaller.instance.cleanupOrphanTmp());
+
   runApp(const AiTechApp());
 }
 

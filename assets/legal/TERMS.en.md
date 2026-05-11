@@ -1,6 +1,6 @@
 # Terms of use — AI Tech
 
-**Version 0.6.0 — May 2026**
+**Version 0.8.0 — May 2026**
 
 ## License
 

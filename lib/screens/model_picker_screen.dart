@@ -10,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../models/model_limits.dart';
 import '../services/storage/model_installer.dart';
 import '../utils/file_size.dart';
+import '../utils/model_magic.dart';
 import '../utils/snackbar_ext.dart';
 
 /// Résultat d'un import de modèle : path final dans le sandbox + SHA-256
@@ -135,21 +136,44 @@ class ModelPickerScreen extends StatelessWidget {
       if (context.mounted) context.showFloatingSnack(t.modelPickerTooSmall);
       return;
     }
-    final head = await f.openRead(0, 32).first;
-    bool hasPk = false;
-    for (var i = 0; i < head.length - 1; i++) {
-      if (head[i] == 0x50 && head[i + 1] == 0x4B) {
-        hasPk = true;
-        break;
-      }
-    }
-    final hasTfl =
-        head.length >= 8 &&
-        ((head[4] == 0x54 && head[5] == 0x46 && head[6] == 0x4C) ||
-            (head[0] == 0x54 && head[1] == 0x46 && head[2] == 0x4C));
-    if (!hasPk && !hasTfl) {
-      if (context.mounted) context.showFloatingSnack(t.modelPickerNotMediapipe);
+    // v0.8.0 — magic check des 32 premiers octets.
+    // - `.task`     : doit contenir `PK` (ZIP MediaPipe) ou `TFL` (TFLite).
+    // - `.litertlm` : pas de magic stable connu, mais on bloque les formats
+    //   évidents qu'un attaquant pourrait renommer (PDF, EXE PE, ZIP, image,
+    //   XML/HTML). Defense-in-depth pour repousser le rename opportuniste
+    //   avant que le binaire C `libLiteRtLm.so` ne parse un fichier piégé.
+    final List<int> head;
+    try {
+      head = await f.openRead(0, 32).first;
+    } catch (_) {
+      if (context.mounted) context.showFloatingSnack(t.modelPickerNotFound);
       return;
+    }
+    if (originalName.endsWith('.task')) {
+      bool hasPk = false;
+      for (var i = 0; i < head.length - 1; i++) {
+        if (head[i] == 0x50 && head[i + 1] == 0x4B) {
+          hasPk = true;
+          break;
+        }
+      }
+      final hasTfl =
+          head.length >= 8 &&
+          ((head[4] == 0x54 && head[5] == 0x46 && head[6] == 0x4C) ||
+              (head[0] == 0x54 && head[1] == 0x46 && head[2] == 0x4C));
+      if (!hasPk && !hasTfl) {
+        if (context.mounted) {
+          context.showFloatingSnack(t.modelPickerNotMediapipe);
+        }
+        return;
+      }
+    } else if (originalName.endsWith('.litertlm')) {
+      if (looksLikeKnownNonModel(head)) {
+        if (context.mounted) {
+          context.showFloatingSnack(t.modelPickerNotMediapipe);
+        }
+        return;
+      }
     }
 
     if (!context.mounted) return;

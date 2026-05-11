@@ -1,7 +1,7 @@
 name: ai_tech
 description: "Assistant IA 100% on-device — Files Tech"
 publish_to: 'none'
-version: 0.6.1+12
+version: 0.8.0+14
 
 environment:
   sdk: ^3.11.5
@@ -18,8 +18,9 @@ dependencies:
   files_tech_core:
     path: ../files_tech_core
 
-  # MediaPipe LLM Inference (Gemma 2 / Gemma 3 .task / .litertlm).
-  flutter_gemma: ^0.14.0
+  # LiteRT-LM / MediaPipe LLM Inference (Gemma 3 / 3n / 4, .task / .litertlm).
+  # 0.15.0 : ModelType.gemma4, MTP / speculative decoding, native system role.
+  flutter_gemma: ^0.15.0
 
   # Picker pour charger le modèle .task depuis le stockage utilisateur.
   file_picker: ^8.1.2

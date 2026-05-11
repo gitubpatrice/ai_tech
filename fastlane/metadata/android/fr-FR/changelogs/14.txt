@@ -1,0 +1,64 @@
+v0.8.0 — Migration Gemma 4 + audit zéro-vuln (mai 2026)
+
+Nouveaux modèles
+• Support Gemma 4 E2B / E4B (`.litertlm`) avec `ModelType.gemma4` natif
+  flutter_gemma 0.15.0 / LiteRT-LM 0.11.0. Vrai rôle `system` natif
+  (plus de hack F1 fold-into-user) + speculative decoding (MTP) activé
+  automatiquement si le `.litertlm` contient un draft model.
+• Détection automatique de la famille via le nom de fichier (gemma-4 /
+  gemma4 prioritaires AVANT gemma générique) — anti-gibberish.
+• `enableSpeculativeDecoding: null` : laisse le SDK décider selon que
+  le modèle contient un draft MTP, anti-crash sur `.litertlm` pré-MTP.
+
+Sécurité
+• Magic blocklist `.litertlm` (PDF / EXE / ELF / Mach-O / ZIP / image /
+  RIFF / XML / HTML / RTF) — repousse les renames opportunistes avant
+  que `libLiteRtLm.so` ne parse un fichier piégé.
+• `RagService._sanitize` étendu pour les nouveaux tokens Gemma 4 :
+  `<|"|>`, `<tool|>` fermant, `<|pad|>`, `<|unk|>`, `<|mask|>`,
+  variants espacés `< | tool | >`.
+• PanicService : clé AES wipée EN PREMIER (avant les modèles ~6 Go).
+  Avant : un force-stop pendant le wipe modèles laissait clé + chats
+  intacts.
+• Whitelist `setLocale` (en/fr seulement), `supportAudio:false`
+  explicite partout, `_disposeInternal` reset `_family`, sanitize
+  filename force `.task`/`.litertlm`, double-extension bloquée.
+
+Robustesse
+• `resetConversation` (Effacer la conversation) recrée la session pour
+  les familles à rôle `system` natif — re-injecte `systemInstruction`
+  proprement. Avant : crash silencieux sur Gemma 3 / 4 / DeepSeek.
+• Try/catch autour `installModel` + `getActiveModel` + `createChat` :
+  cleanup du handle natif si une étape échoue, plus de `_model`
+  orphelin.
+• `_lastModelPath = null` dans le catch : évite la boucle `ensureLoaded`
+  qui retentait l'install échouée à chaque retour de Spike.
+• Re-détection de la famille au load : si l'utilisateur écrase un
+  `.task` Gemma 3 par un Gemma 4 sans repasser par le picker, le
+  template correct est appliqué.
+• Purge des `.tmp` orphelins au boot (crash pendant un import laissait
+  des fichiers ~Go non nettoyés).
+
+UX
+• Conversion LaTeX → Unicode côté affichage : Gemma émet souvent des
+  formules en MathJax (`$\text{H}_2\text{O}$`) que MarkdownBody ne sait
+  pas rendre. Conversion automatique vers `H₂O`, `E = mc²`, `α`, `√x`,
+  etc. — couvre indices/exposants chiffres et lettres, lettres grecques,
+  opérateurs (`\times`, `\le`, `\to`), ensembles.
+• System prompt FR/EN renforcé : interdiction explicite du LaTeX, demande
+  de notation Unicode native pour les formules.
+• Corbeilles en rouge (`colorScheme.error`) sur 5 sites : effacer
+  conversation, supprimer modèle, supprimer document, supprimer chat,
+  effacer tous les chats. Visibilité de l'action destructive.
+• Helper `displayLabel(family)` : Settings affiche "Gemma 4" au lieu
+  de "gemma4".
+
+Documentation
+• SECURITY.md : 0.8.x supportée
+• PRIVACY.md + assets/legal/PRIVACY.{fr,en}.md + TERMS.{fr,en}.md
+  bumpés v0.8.0.
+
+Tests : 42/42 passed (+25 nouveaux pour `model_family_test`).
+flutter analyze : 0 erreur, 0 warning.
+Audit zéro-vuln zéro-faille : 0 Critical / 0 High sur 3 axes
+(sécurité / cohérence migration / non-régression).

@@ -7,8 +7,8 @@ maintenue côté sécurité.
 
 | Version | Supportée |
 | ------- | --------- |
-| 0.6.x   | ✅        |
-| < 0.6   | ❌        |
+| 0.8.x   | ✅        |
+| < 0.8   | ❌        |
 
 ## Modèle de menace
 

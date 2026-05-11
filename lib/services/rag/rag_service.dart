@@ -208,9 +208,21 @@ class RagService {
     final patterns = <RegExp>[
       RegExp(r'\[\s*INST\s*\]', caseSensitive: false),
       RegExp(r'\[\s*/\s*INST\s*\]', caseSensitive: false),
-      // <|im_start|>, <|im_end|>, <|system|>, <|user|>, etc.
+      // <|im_start|>, <|im_end|>, <|system|>, <|user|>, <|tool|>,
+      // <|tool_response|>, <|tool_call|>, <|turn|>, <|channel|>,
+      // <|image|>, <|audio|>, <|video|> (Gemma 4 chat template)
       RegExp(r'<\|\s*[a-z_]+\s*\|>', caseSensitive: false),
-      RegExp(r'<(start_of_turn|end_of_turn|bos|eos)>', caseSensitive: false),
+      // v0.8.0 — variant espacé : "< | tool | >"
+      RegExp(r'<\s*\|\s*[a-z_]+\s*\|\s*>', caseSensitive: false),
+      // v0.8.0 — Gemma 4 token littéral guillemet : <|"|>
+      RegExp(r'<\|\s*"\s*\|>'),
+      // v0.8.0 — Gemma 4 fermeture inversée : <tool|> et </tool|>
+      RegExp(r'<\s*/?\s*[a-z_]+\s*\|\s*>', caseSensitive: false),
+      // <bos>, <eos>, <pad>, <unk>, <mask>, <start_of_turn>, <end_of_turn>
+      RegExp(
+        r'<(start_of_turn|end_of_turn|bos|eos|pad|unk|mask)>',
+        caseSensitive: false,
+      ),
       RegExp(
         r'[\r\n]\s*(user|model|system|assistant)\s*[\r\n]',
         caseSensitive: false,

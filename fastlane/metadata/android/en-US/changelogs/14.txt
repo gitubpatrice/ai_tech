@@ -1,0 +1,62 @@
+v0.8.0 — Gemma 4 migration + zero-vuln audit (May 2026)
+
+New models
+• Gemma 4 E2B / E4B support (`.litertlm`) with native `ModelType.gemma4`
+  via flutter_gemma 0.15.0 / LiteRT-LM 0.11.0. True native `system`
+  role (no more F1 fold-into-user hack) + speculative decoding (MTP)
+  activated automatically when the `.litertlm` ships a draft model.
+• Automatic family detection from filename (gemma-4 / gemma4 prioritized
+  BEFORE generic gemma) — anti-gibberish.
+• `enableSpeculativeDecoding: null` lets the SDK decide based on draft
+  model presence — anti-crash on pre-MTP `.litertlm`.
+
+Security
+• Magic blocklist for `.litertlm` (PDF / EXE / ELF / Mach-O / ZIP /
+  image / RIFF / XML / HTML / RTF) — rejects opportunistic renames
+  before `libLiteRtLm.so` parses a booby-trapped file.
+• `RagService._sanitize` extended with new Gemma 4 tokens: `<|"|>`,
+  closing `<tool|>`, `<|pad|>`, `<|unk|>`, `<|mask|>`, spaced variants
+  `< | tool | >`.
+• PanicService: AES key wiped FIRST (before ~6 GB of models). Before,
+  a force-stop during model wipe left key + chats intact.
+• `setLocale` whitelist (en/fr only), explicit `supportAudio:false`
+  everywhere, `_disposeInternal` resets `_family`, filename sanitize
+  forces `.task`/`.litertlm`, double-extension blocked.
+
+Robustness
+• `resetConversation` (Clear chat) recreates the session for families
+  with native `system` role — re-injects `systemInstruction` cleanly.
+  Before: silent crash on Gemma 3 / 4 / DeepSeek.
+• Try/catch around `installModel` + `getActiveModel` + `createChat`:
+  native handle cleanup on failure, no more orphan `_model`.
+• `_lastModelPath = null` in catch: avoids `ensureLoaded` loop
+  retrying the failed install on every return from Spike.
+• Re-detection of family on load: if user overwrites a Gemma 3 `.task`
+  with a Gemma 4 without going through the picker, the right template
+  is applied.
+• Orphan `.tmp` cleanup at boot (crash during import left ~GB files
+  uncleaned).
+
+UX
+• LaTeX → Unicode conversion at render time: Gemma often emits formulas
+  in MathJax (`$\text{H}_2\text{O}$`) that MarkdownBody can't render.
+  Auto-conversion to `H₂O`, `E = mc²`, `α`, `√x`, etc. — covers
+  digit/letter sub/superscripts, Greek letters, operators (`\times`,
+  `\le`, `\to`), set theory.
+• FR/EN system prompt reinforced: explicit LaTeX ban, request for
+  native Unicode notation for formulas.
+• Trash icons in red (`colorScheme.error`) on 5 sites: clear
+  conversation, remove model, delete document, delete chat, clear all
+  chats. Visibility of destructive action.
+• Helper `displayLabel(family)`: Settings displays "Gemma 4" instead
+  of "gemma4".
+
+Documentation
+• SECURITY.md: 0.8.x supported
+• PRIVACY.md + assets/legal/PRIVACY.{fr,en}.md + TERMS.{fr,en}.md
+  bumped v0.8.0.
+
+Tests: 42/42 passed (+25 new for `model_family_test`).
+flutter analyze: 0 error, 0 warning.
+Zero-vuln zero-flaw audit: 0 Critical / 0 High across 3 axes
+(security / migration consistency / non-regression).

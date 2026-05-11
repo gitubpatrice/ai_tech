@@ -17,6 +17,9 @@ class LlmService {
   InferenceModel? _model;
   InferenceModelSession? _session;
   ModelFamily _family = ModelFamily.gemma;
+  // v0.8.0 — mémorise le fileType de l'install courant pour déterminer
+  // correctement `enableSpeculativeDecoding` au moment de `load()`.
+  ModelFileType _fileType = ModelFileType.task;
 
   bool get isLoaded => _model != null;
   ModelFamily get family => _family;
@@ -40,18 +43,25 @@ class LlmService {
     _family = family == ModelFamily.auto
         ? ModelFamilyUtils.detectFamily(path)
         : family;
+    _fileType = ModelFamilyUtils.detectFileType(path);
     await FlutterGemma.installModel(
       modelType: ModelFamilyUtils.modelTypeFor(_family),
-      fileType: ModelFamilyUtils.detectFileType(path),
+      fileType: _fileType,
     ).fromFile(path).install();
   }
 
   Future<void> load({int maxTokens = 1024, PreferredBackend? backend}) async {
     await dispose();
+    // v0.8.0 — speculative decoding via helper qui passe `null` (laisse le
+    // SDK décider selon que le `.litertlm` Gemma 4 contient un draft model
+    // MTP ou non — anti-crash sur modèle pré-MTP).
     _model = await FlutterGemma.getActiveModel(
       maxTokens: maxTokens,
       preferredBackend: backend,
       supportImage: false,
+      supportAudio: false,
+      enableSpeculativeDecoding:
+          ModelFamilyUtils.speculativeDecodingFor(_family, _fileType),
     );
     _session = await _model!.createSession(temperature: 0.7, topK: 40);
   }

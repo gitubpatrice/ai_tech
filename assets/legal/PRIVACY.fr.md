@@ -1,6 +1,6 @@
 # Politique de confidentialité — AI Tech
 
-**Version 0.6.1 — Mai 2026**
+**Version 0.8.0 — Mai 2026**
 
 ## En une phrase
 

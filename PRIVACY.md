@@ -1,6 +1,6 @@
 # Politique de confidentialité — AI Tech
 
-**Version** : v0.6.1 — 2026-05-09
+**Version** : v0.8.0 — 2026-05-11
 **Éditeur** : Files Tech / Patrice Haltaya
 **Contact** : contact@files-tech.com
 
