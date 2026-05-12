@@ -1,0 +1,14 @@
+v0.9.0 — security & UX refactor
+
+• ModelRegistry now stored encrypted with AES-GCM (auto-migrates
+  from previous plaintext storage on first launch).
+• SHA-256 change confirmation: if you re-install a model under the
+  same name with a different fingerprint, an explicit dialog warns
+  you before replacing.
+• Memory watchdog: warns before loading a model too heavy for your
+  device (prevents OOM crashes on Gemma 4 E2B).
+• Rename and swipe-to-delete your conversations.
+• Detailed SECURITY.md: explicit posture on root detection,
+  biometric trade-off, non-whitelisted models.
+• Debug-only logger for prompts sent to the native runtime
+  (kDebugMode).
