@@ -107,6 +107,10 @@
   "@chatListDeleteConfirmBody": { "placeholders": { "title": { "type": "String" } } },
   "chatListSubtitle": "{count} {count, plural, =1{message} other{messages}} · {date}",
   "@chatListSubtitle": { "placeholders": { "count": { "type": "int" }, "date": { "type": "String" } } },
+  "chatListRenameAction": "Renommer",
+  "chatListRenameTitle": "Renommer la conversation",
+  "chatListRenameHint": "Nouveau titre (vide pour réinitialiser)",
+  "chatListSwipeHintDelete": "Glisser à gauche pour supprimer",
 
   "documentsTitle": "Documents",
   "documentsImport": "Importer",
@@ -182,6 +186,18 @@
   "modelInstallFailedTitle": "Échec de la copie",
   "modelInstallFailedBody": "La copie du modèle a échoué :\n\n{error}",
   "@modelInstallFailedBody": { "placeholders": { "error": { "type": "String" } } },
+
+  "memoryLowTitle": "Mémoire insuffisante",
+  "memoryLowBody": "Ce modèle ({needed} Mo estimés) risque de provoquer un crash : seulement {avail} Mo libres sur ce téléphone. Forcer le chargement peut faire planter l'application.",
+  "@memoryLowBody": { "placeholders": { "needed": { "type": "String" }, "avail": { "type": "String" } } },
+  "memoryLowProceed": "Forcer quand même",
+  "memoryLowCancel": "Annuler",
+
+  "modelShaChangedTitle": "Empreinte SHA-256 modifiée",
+  "modelShaChangedBody": "Un modèle au même nom existait déjà avec une empreinte différente.\n\nAncienne : {previous}\nNouvelle : {current}\n\nSi vous n'avez pas remplacé volontairement ce fichier, refusez l'installation.",
+  "@modelShaChangedBody": { "placeholders": { "previous": { "type": "String" }, "current": { "type": "String" } } },
+  "modelShaChangedReplace": "Remplacer",
+  "modelShaChangedRefuse": "Refuser",
 
   "onboardingWelcomeTitle": "Bienvenue dans AI Tech",
   "onboardingWelcomeSubtitle": "Un assistant IA qui tourne entièrement sur votre téléphone.",

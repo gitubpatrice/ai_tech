@@ -322,6 +322,18 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get chatListRenameAction => 'Renommer';
+
+  @override
+  String get chatListRenameTitle => 'Renommer la conversation';
+
+  @override
+  String get chatListRenameHint => 'Nouveau titre (vide pour réinitialiser)';
+
+  @override
+  String get chatListSwipeHintDelete => 'Glisser à gauche pour supprimer';
+
+  @override
   String get documentsTitle => 'Documents';
 
   @override
@@ -537,6 +549,34 @@ class AppLocalizationsFr extends AppLocalizations {
   String modelInstallFailedBody(String error) {
     return 'La copie du modèle a échoué :\n\n$error';
   }
+
+  @override
+  String get memoryLowTitle => 'Mémoire insuffisante';
+
+  @override
+  String memoryLowBody(String needed, String avail) {
+    return 'Ce modèle ($needed Mo estimés) risque de provoquer un crash : seulement $avail Mo libres sur ce téléphone. Forcer le chargement peut faire planter l\'application.';
+  }
+
+  @override
+  String get memoryLowProceed => 'Forcer quand même';
+
+  @override
+  String get memoryLowCancel => 'Annuler';
+
+  @override
+  String get modelShaChangedTitle => 'Empreinte SHA-256 modifiée';
+
+  @override
+  String modelShaChangedBody(String previous, String current) {
+    return 'Un modèle au même nom existait déjà avec une empreinte différente.\n\nAncienne : $previous\nNouvelle : $current\n\nSi vous n\'avez pas remplacé volontairement ce fichier, refusez l\'installation.';
+  }
+
+  @override
+  String get modelShaChangedReplace => 'Remplacer';
+
+  @override
+  String get modelShaChangedRefuse => 'Refuser';
 
   @override
   String get onboardingWelcomeTitle => 'Bienvenue dans AI Tech';

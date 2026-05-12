@@ -638,6 +638,30 @@ abstract class AppLocalizations {
   /// **'{count} {count, plural, =1{message} other{messages}} · {date}'**
   String chatListSubtitle(int count, String date);
 
+  /// No description provided for @chatListRenameAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get chatListRenameAction;
+
+  /// No description provided for @chatListRenameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename conversation'**
+  String get chatListRenameTitle;
+
+  /// No description provided for @chatListRenameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'New title (empty to reset)'**
+  String get chatListRenameHint;
+
+  /// No description provided for @chatListSwipeHintDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe left to delete'**
+  String get chatListSwipeHintDelete;
+
   /// No description provided for @documentsTitle.
   ///
   /// In en, this message translates to:
@@ -1003,6 +1027,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The model copy failed:\n\n{error}'**
   String modelInstallFailedBody(String error);
+
+  /// No description provided for @memoryLowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Low memory'**
+  String get memoryLowTitle;
+
+  /// No description provided for @memoryLowBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This model (~{needed} MB) is likely to crash the app: only {avail} MB free on this device. Forcing the load may cause a hard kill.'**
+  String memoryLowBody(String needed, String avail);
+
+  /// No description provided for @memoryLowProceed.
+  ///
+  /// In en, this message translates to:
+  /// **'Load anyway'**
+  String get memoryLowProceed;
+
+  /// No description provided for @memoryLowCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get memoryLowCancel;
+
+  /// No description provided for @modelShaChangedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'SHA-256 fingerprint changed'**
+  String get modelShaChangedTitle;
+
+  /// No description provided for @modelShaChangedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A model with the same name already existed with a different fingerprint.\n\nPrevious: {previous}\nNew: {current}\n\nIf you did not intentionally replace this file, refuse the install.'**
+  String modelShaChangedBody(String previous, String current);
+
+  /// No description provided for @modelShaChangedReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get modelShaChangedReplace;
+
+  /// No description provided for @modelShaChangedRefuse.
+  ///
+  /// In en, this message translates to:
+  /// **'Refuse'**
+  String get modelShaChangedRefuse;
 
   /// No description provided for @onboardingWelcomeTitle.
   ///

@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
 import '../models/model_limits.dart';
 import '../services/storage/model_installer.dart';
+import '../services/storage/model_registry.dart';
 import '../utils/file_size.dart';
 import '../utils/model_magic.dart';
 import '../utils/snackbar_ext.dart';
@@ -30,6 +31,74 @@ class ModelPickerScreen extends StatelessWidget {
     return Navigator.of(context).push<PickedModel>(
       MaterialPageRoute(builder: (_) => const ModelPickerScreen()),
     );
+  }
+
+  /// v0.9.0 (QW10) — pick + confirmation explicite si on réinstalle un
+  /// modèle au même chemin avec un SHA-256 différent (signal possible
+  /// d'un fichier compromis ou d'un changement intentionnel).
+  ///
+  /// Retourne :
+  ///  - le `PickedModel` choisi si pas de collision OU si l'utilisateur
+  ///    a confirmé le remplacement,
+  ///  - `null` si l'utilisateur a annulé le pick OU refusé le remplacement.
+  ///
+  /// Helper unique pour éviter de dupliquer cette logique entre
+  /// `onboarding_screen` et `settings_screen`.
+  static Future<PickedModel?> pickAndConfirm(BuildContext context) async {
+    final picked = await pick(context);
+    if (picked == null) return null;
+    final existing = await ModelRegistry.instance.findByPath(picked.path);
+    if (existing == null ||
+        existing.sha256 == null ||
+        picked.sha256 == null ||
+        existing.sha256 == picked.sha256) {
+      return picked;
+    }
+    if (!context.mounted) return null;
+    final t = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          icon: Icon(Icons.warning_amber_rounded, color: cs.error, size: 36),
+          title: Text(t.modelShaChangedTitle),
+          content: SingleChildScrollView(
+            child: Text(
+              t.modelShaChangedBody(
+                _shortHash(existing.sha256!),
+                _shortHash(picked.sha256!),
+              ),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(t.modelShaChangedRefuse),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.error,
+                foregroundColor: cs.onError,
+              ),
+              child: Text(t.modelShaChangedReplace),
+            ),
+          ],
+        );
+      },
+    );
+    return ok == true ? picked : null;
+  }
+
+  /// Tronque un hash SHA-256 pour l'affichage en dialog (préfixe + suffixe
+  /// avec ellipsis). Lisibilité > exactitude — le hash complet reste dans
+  /// le fichier modèle si l'utilisateur veut vraiment vérifier.
+  static String _shortHash(String hash) {
+    if (hash.length <= 16) return hash;
+    return '${hash.substring(0, 8)}…${hash.substring(hash.length - 8)}';
   }
 
   /// Ouvre une URL via le navigateur système (intent ACTION_VIEW).

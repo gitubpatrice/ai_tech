@@ -26,7 +26,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _pickAndFinish() async {
     if (_busy) return;
     final t = AppLocalizations.of(context);
-    final picked = await ModelPickerScreen.pick(context);
+    // v0.9.0 — pickAndConfirm intègre l'avertissement SHA-256 modifié
+    // si on réinstalle un modèle au même chemin (sécurité tampering).
+    final picked = await ModelPickerScreen.pickAndConfirm(context);
     if (picked == null || !mounted) return;
     final path = picked.path;
     final lower = path.toLowerCase();

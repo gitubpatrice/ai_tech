@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 
 import '../models/model_family.dart';
@@ -191,6 +192,7 @@ class ChatService {
     Future<void> run() async {
       try {
         final formatted = ModelFamilyUtils.formatUserMessage(clipped, _family);
+        _debugLogChunk('user', formatted, isUser: true);
         await chat.addQueryChunk(Message.text(text: formatted, isUser: true));
         // .listen() au lieu de `await for` : permet de cancel le souscripteur
         // côté Dart, ce que la plupart des plugins propagent au générateur
@@ -382,10 +384,32 @@ class ChatService {
     if (chat == null) return;
     final raw = _systemPromptFor(_locale);
     final formatted = ModelFamilyUtils.formatSystemPrompt(raw, _family);
+    _debugLogChunk('system', formatted, isUser: false);
     // Le bloc `<|im_start|>system\n…<|im_end|>\n` contient déjà le rôle ;
     // on l'envoie en `isUser:false` pour que le SDK ne le réenveloppe pas
     // dans un tour utilisateur.
     await chat.addQueryChunk(Message.text(text: formatted, isUser: false));
+  }
+
+  /// v0.9.0 — Log debug-only des chunks envoyés au natif flutter_gemma.
+  /// Permet de vérifier visuellement la séquence (role + format ChatML/
+  /// Gemma) sans instrumenter le binaire natif. Strictement gated par
+  /// `kDebugMode` — aucune trace en release.
+  ///
+  /// Tronque le texte à 240 chars + indique la longueur totale pour
+  /// éviter de polluer la console avec 32 Ko de prompt RAG augmenté.
+  void _debugLogChunk(String label, String text, {required bool isUser}) {
+    if (!kDebugMode) return;
+    final family = _family.name;
+    final preview = text.length > 240 ? '${text.substring(0, 240)}…' : text;
+    final escaped = preview
+        .replaceAll('\n', r'\n')
+        .replaceAll('\r', r'\r')
+        .replaceAll('\t', r'\t');
+    debugPrint(
+      '[chat_service] → addQueryChunk family=$family isUser=$isUser '
+      'label=$label len=${text.length}\n  payload=$escaped',
+    );
   }
 
   /// F1 v0.6.1 — sélection FR/EN du system prompt. La locale est

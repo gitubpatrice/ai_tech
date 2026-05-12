@@ -16,6 +16,7 @@ import '../services/chat_service.dart';
 import '../services/rag/rag_service.dart';
 import '../services/storage/app_settings_store.dart';
 import '../services/storage/encrypted_chat_store.dart';
+import '../services/memory_watchdog.dart';
 import '../services/storage/model_registry.dart';
 import '../utils/app_dialogs.dart';
 import '../utils/chat_session_label.dart';
@@ -212,6 +213,43 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     });
   }
 
+  /// v0.9.0 (#2 WatchDog) — Avertit l'utilisateur que la marge mémoire
+  /// est insuffisante pour le modèle qu'il s'apprête à charger. Retourne
+  /// `true` s'il choisit de forcer, `false` ou `null` s'il annule.
+  Future<bool?> _confirmLowMemory(
+    ({bool ok, MemoryInfo? info, int neededBytes}) check,
+  ) {
+    final t = AppLocalizations.of(context);
+    final neededMb = (check.neededBytes / (1024 * 1024)).round();
+    final availMb = ((check.info?.availBytes ?? 0) / (1024 * 1024)).round();
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          icon: Icon(Icons.memory_outlined, color: cs.error, size: 36),
+          title: Text(t.memoryLowTitle),
+          content: Text(t.memoryLowBody('$neededMb', '$availMb')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(t.memoryLowCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.error,
+                foregroundColor: cs.onError,
+              ),
+              child: Text(t.memoryLowProceed),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _loadActiveModel(ModelEntry entry, AppSettings settings) async {
     if (!mounted) return;
     setState(() {
@@ -233,6 +271,27 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               detected == ModelFamily.gemma4)
           ? detected
           : stored;
+
+      // v0.9.0 (#2 WatchDog) — sonde mémoire avant chargement. Sur un
+      // device <3 Go (Redmi 9C, S9), Gemma 4 E2B (~530 Mo) entraîne un
+      // OOM kill brutal. On laisse l'utilisateur décider (forcer) mais
+      // on le préviens explicitement avec la marge réelle.
+      if (entry.sizeBytes > 0) {
+        final check = await MemoryWatchdog.instance.check(entry.sizeBytes);
+        if (!check.ok && mounted) {
+          final proceed = await _confirmLowMemory(check);
+          if (proceed != true) {
+            if (mounted) {
+              setState(() {
+                _modelLoading = false;
+                _bootError = null;
+              });
+            }
+            return;
+          }
+        }
+      }
+
       await _chat.installAndLoad(
         entry.path,
         family: family,

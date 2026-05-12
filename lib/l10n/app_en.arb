@@ -107,6 +107,10 @@
   "@chatListDeleteConfirmBody": { "placeholders": { "title": { "type": "String" } } },
   "chatListSubtitle": "{count} {count, plural, =1{message} other{messages}} · {date}",
   "@chatListSubtitle": { "placeholders": { "count": { "type": "int" }, "date": { "type": "String" } } },
+  "chatListRenameAction": "Rename",
+  "chatListRenameTitle": "Rename conversation",
+  "chatListRenameHint": "New title (empty to reset)",
+  "chatListSwipeHintDelete": "Swipe left to delete",
 
   "documentsTitle": "Documents",
   "documentsImport": "Import",
@@ -182,6 +186,18 @@
   "modelInstallFailedTitle": "Copy failed",
   "modelInstallFailedBody": "The model copy failed:\n\n{error}",
   "@modelInstallFailedBody": { "placeholders": { "error": { "type": "String" } } },
+
+  "memoryLowTitle": "Low memory",
+  "memoryLowBody": "This model (~{needed} MB) is likely to crash the app: only {avail} MB free on this device. Forcing the load may cause a hard kill.",
+  "@memoryLowBody": { "placeholders": { "needed": { "type": "String" }, "avail": { "type": "String" } } },
+  "memoryLowProceed": "Load anyway",
+  "memoryLowCancel": "Cancel",
+
+  "modelShaChangedTitle": "SHA-256 fingerprint changed",
+  "modelShaChangedBody": "A model with the same name already existed with a different fingerprint.\n\nPrevious: {previous}\nNew: {current}\n\nIf you did not intentionally replace this file, refuse the install.",
+  "@modelShaChangedBody": { "placeholders": { "previous": { "type": "String" }, "current": { "type": "String" } } },
+  "modelShaChangedReplace": "Replace",
+  "modelShaChangedRefuse": "Refuse",
 
   "onboardingWelcomeTitle": "Welcome to AI Tech",
   "onboardingWelcomeSubtitle": "An AI assistant that runs entirely on your phone.",

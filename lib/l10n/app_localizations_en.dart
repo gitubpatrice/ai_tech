@@ -321,6 +321,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get chatListRenameAction => 'Rename';
+
+  @override
+  String get chatListRenameTitle => 'Rename conversation';
+
+  @override
+  String get chatListRenameHint => 'New title (empty to reset)';
+
+  @override
+  String get chatListSwipeHintDelete => 'Swipe left to delete';
+
+  @override
   String get documentsTitle => 'Documents';
 
   @override
@@ -536,6 +548,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String modelInstallFailedBody(String error) {
     return 'The model copy failed:\n\n$error';
   }
+
+  @override
+  String get memoryLowTitle => 'Low memory';
+
+  @override
+  String memoryLowBody(String needed, String avail) {
+    return 'This model (~$needed MB) is likely to crash the app: only $avail MB free on this device. Forcing the load may cause a hard kill.';
+  }
+
+  @override
+  String get memoryLowProceed => 'Load anyway';
+
+  @override
+  String get memoryLowCancel => 'Cancel';
+
+  @override
+  String get modelShaChangedTitle => 'SHA-256 fingerprint changed';
+
+  @override
+  String modelShaChangedBody(String previous, String current) {
+    return 'A model with the same name already existed with a different fingerprint.\n\nPrevious: $previous\nNew: $current\n\nIf you did not intentionally replace this file, refuse the install.';
+  }
+
+  @override
+  String get modelShaChangedReplace => 'Replace';
+
+  @override
+  String get modelShaChangedRefuse => 'Refuse';
 
   @override
   String get onboardingWelcomeTitle => 'Welcome to AI Tech';

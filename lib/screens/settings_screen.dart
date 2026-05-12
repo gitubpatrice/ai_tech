@@ -59,7 +59,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _addModel() async {
     if (_busy) return;
     final t = AppLocalizations.of(context);
-    final picked = await ModelPickerScreen.pick(context);
+    // v0.9.0 (QW10) — pickAndConfirm avertit si SHA-256 modifié sur
+    // même path (signal de remplacement intentionnel vs compromission).
+    final picked = await ModelPickerScreen.pickAndConfirm(context);
     if (picked == null || !mounted) return;
     final path = picked.path;
     final lower = path.toLowerCase();
