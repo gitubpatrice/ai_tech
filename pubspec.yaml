@@ -62,6 +62,16 @@ dev_dependencies:
   path_provider_platform_interface: ^2.1.0
   plugin_platform_interface: ^2.1.0
 
+  # Génération des icônes mipmap Android (5 densités + adaptive icon).
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/ai_tech_icon.png"
+  adaptive_icon_background: "#262660"
+  adaptive_icon_foreground: "assets/icon/ai_tech_icon.png"
+
 flutter:
   uses-material-design: true
   generate: true
