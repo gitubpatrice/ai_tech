@@ -32,12 +32,17 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final iconWidget = Icon(icon, size: 56, color: iconColor ?? cs.outline);
+    // QW17 v0.8.1 — dérivé de textTheme.titleMedium (respect Dynamic Type
+    // a11y) au lieu de fontSize 18 hard-coded.
     final titleWidget = Text(
       title,
       textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+      style: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
     );
     return Center(
       child: Padding(

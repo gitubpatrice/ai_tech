@@ -460,17 +460,12 @@ class _ModelTileState extends State<_ModelTile> {
   Future<void> _verify() async {
     if (_verifying) return;
     final t = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     setState(() => _verifying = true);
     try {
       final file = File(widget.entry.path);
       if (!await file.exists()) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(t.settingsHashFileNotFound),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        // QW18 v0.8.1 — uniformise via showFloatingSnack helper.
+        if (mounted) context.showFloatingSnack(t.settingsHashFileNotFound);
         return;
       }
       final digest = await sha256.bind(file.openRead()).first;
@@ -532,12 +527,8 @@ class _ModelTileState extends State<_ModelTile> {
         }
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(t.settingsHashVerifyError('$e')),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      // QW18 v0.8.1 — uniformise via showFloatingSnack helper.
+      if (mounted) context.showFloatingSnack(t.settingsHashVerifyError('$e'));
     } finally {
       if (mounted) setState(() => _verifying = false);
     }

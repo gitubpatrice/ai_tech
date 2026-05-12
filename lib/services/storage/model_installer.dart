@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
@@ -118,6 +119,28 @@ class ModelInstaller {
 
     final dir = await _modelsDir();
     await _cleanupTempFiles(dir);
+
+    // QW9 v0.8.1 — sonde "réservation" : crée un fichier 1 Mo pour tester
+    // la disponibilité du dossier avant la copie streaming 6 Go. Si la
+    // sonde rate sur disk-full, on remonte une erreur claire au lieu de
+    // saturer le sandbox pendant 30 s. Dart n'a pas d'API portable
+    // `getFreeSpace`, donc on s'appuie sur ce probe minimal + le catch
+    // FileSystemException ci-dessous.
+    final probe = File('${dir.path}${Platform.pathSeparator}.installer_probe');
+    try {
+      await probe.writeAsBytes(Uint8List(1024 * 1024), flush: true);
+    } catch (_) {
+      throw StateError(
+        'Espace disque insuffisant pour installer ce modèle '
+        '(${(total / (1024 * 1024)).round()} Mo requis).',
+      );
+    } finally {
+      try {
+        if (probe.existsSync()) probe.deleteSync();
+      } catch (_) {
+        /* best-effort */
+      }
+    }
 
     final destPath = '${dir.path}${Platform.pathSeparator}$safeName';
     final tmp = File('$destPath.tmp');

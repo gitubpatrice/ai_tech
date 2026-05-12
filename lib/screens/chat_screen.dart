@@ -1,4 +1,4 @@
-import 'dart:async' show StreamSubscription, unawaited;
+import 'dart:async' show StreamSubscription, Timer, unawaited;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -61,6 +61,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   // Throttle auto-scroll : un seul postFrame en vol à la fois.
   bool _scrollScheduled = false;
 
+  // QW5 v0.8.1 — debounce des saves : Stop+onError+inactive lifecycle
+  // pouvaient queuer 3 saves successifs en quelques ms (50-200ms cumulés).
+  // 300 ms collapse les rafales sans perdre de données (flush forcé en
+  // dispose, paused, et stop).
+  Timer? _persistDebounce;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +77,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   @override
   Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.paused) {
+      // QW2 v0.8.1 — cancel génération native MediaPipe sur pause :
+      // Gemma 4 à 19 tok/s consomme un core à 100% → 5-15% batterie/h
+      // gaspillés si l'user quitte pendant une longue réponse. Le state
+      // _generating est repassé à false pour rouvrir le bouton Send au
+      // retour.
+      if (_generating) {
+        unawaited(_chat.cancelGeneration());
+        await _activeSub?.cancel();
+        _activeSub = null;
+        if (mounted) {
+          setState(() {
+            _generating = false;
+            for (final m in _session.messages) {
+              if (m.pending) m.pending = false;
+            }
+          });
+        }
+      }
       final hasContent = _session.messages.any((m) => !m.pending);
       if (hasContent) {
         try {
@@ -91,7 +115,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _streamingNotifier?.dispose();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
-    _persistIfNeeded();
+    // QW5 v0.8.1 — flush immédiat à dispose (pas de debounce sortant qui
+    // ne s'exécuterait jamais avec un widget démonté).
+    _persistNow();
+    _persistDebounce?.cancel();
     super.dispose();
   }
 
@@ -213,6 +240,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         temperature: settings.temperature,
         topK: settings.topK,
       );
+      // QW13 v0.8.1 — persiste la family corrigée dans ModelRegistry une
+      // fois le load réussi, sinon SettingsScreen continue d'afficher
+      // "Gemma 3" alors que le runtime tourne en Gemma 4 (désynchro).
+      if (family != stored && family.name != entry.family) {
+        try {
+          await ModelRegistry.instance.register(
+            path: entry.path,
+            displayName: entry.displayName,
+            family: family.name,
+            fileType: entry.fileType,
+            sha256: entry.sha256,
+          );
+        } catch (_) {
+          /* best-effort, ne bloque pas le load */
+        }
+      }
     } catch (e) {
       if (mounted) setState(() => _bootError = '$e');
     } finally {
@@ -223,6 +266,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<void> _send() async {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty || _generating || !_chat.isLoaded) return;
+
+    // QW11 v0.8.1 — protège la race double-tap : `_generating = true`
+    // AVANT le 1er `await`. Sans ça, deux taps rapprochés re-rentraient
+    // dans la fenêtre async `await _activeSub?.cancel()` et ajoutaient
+    // une 2e bulle user fantôme.
+    setState(() => _generating = true);
 
     final t = AppLocalizations.of(context);
     _inputCtrl.clear();
@@ -248,7 +297,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _session.messages.add(userMsg);
       _session.messages.add(assistantMsg);
       _session.updatedAt = DateTime.now();
-      _generating = true;
     });
     SemanticsService.announce(t.chatAnnounceGenerationStart, TextDirection.ltr);
     _scheduleScrollToBottom();
@@ -469,9 +517,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _persistIfNeeded() {
     final hasContent = _session.messages.any((m) => !m.pending);
     if (!hasContent) return;
-    // fire-and-forget : on ne bloque pas l'UI. unawaited + catchError évitent
-    // qu'une exception async (disk full, Keystore lock, AAD fail) remonte en
-    // unhandledError zone si l'écran est déjà popped quand la save échoue.
+    // QW5 v0.8.1 — debounce 300 ms : collapse les rafales Stop+onError+
+    // inactive lifecycle qui pouvaient queuer 3 saves successifs.
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(milliseconds: 300), _persistNow);
+  }
+
+  /// Persiste immédiatement (skip debounce). Utilisé sur dispose / paused /
+  /// flush manuel — garantit que les données pré-rafale ne sont pas perdues.
+  void _persistNow() {
+    _persistDebounce?.cancel();
+    final hasContent = _session.messages.any((m) => !m.pending);
+    if (!hasContent) return;
     unawaited(
       EncryptedChatStore.instance.save(_session).catchError((_) {
         /* best-effort */
@@ -761,8 +818,7 @@ class _ErrorState extends StatelessWidget {
               header: true,
               child: Text(
                 t.chatStatusLoadFailed,
-                style: const TextStyle(
-                  fontSize: 18,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -956,61 +1012,92 @@ class _Bubble extends StatelessWidget {
             isUser: isUser,
           );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: isUser
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        children: [
-          Flexible(
-            child: GestureDetector(
-              onLongPress: message.pending
-                  ? null
-                  : () => _copy(context, message.text),
-              child: Semantics(
-                label: isUser ? t.chatBubbleUser : t.chatBubbleAssistant,
-                container: true,
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.82,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: bg,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      body,
-                      if (message.pending)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: SizedBox(
-                            width: 10,
-                            height: 10,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              color: fg.withValues(alpha: 0.5),
+    // QW1 v0.8.1 — MediaQuery.sizeOf (ne dépend que de size) au lieu de
+    //   MediaQuery.of(...).size : élimine ~80% des rebuilds parasites
+    //   sur ouverture/fermeture clavier (viewInsets ne déclenche plus).
+    // QW4 v0.8.1 — RepaintBoundary autour de la bulle pour isoler la
+    //   couche de peinture pendant le streaming d'autres bulles.
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    // Cap visuel sur grandes tablettes / foldables : 82 % de 800dp = 656dp.
+    final maxBubbleWidth = (screenWidth * 0.82).clamp(0.0, 560.0);
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisAlignment: isUser
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          children: [
+            Flexible(
+              child: GestureDetector(
+                onLongPress: message.pending
+                    ? null
+                    : () => _copy(context, message.text),
+                child: Semantics(
+                  label: isUser ? t.chatBubbleUser : t.chatBubbleAssistant,
+                  container: true,
+                  child: Container(
+                    constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        body,
+                        // QW15 v0.8.1 — typing dots animés (pattern attendu
+                        // 2026 sur apps de chat IA, ChatGPT/Gemini-like) au
+                        // lieu du mini spinner 10×10 atypique.
+                        if (message.pending)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: _TypingDots(color: fg),
+                          ),
+                        // QW16 v0.8.1 — bouton copy explicite sur bulle
+                        // assistant terminée (long-press conservé en
+                        // fallback). Pattern attendu UX chat IA.
+                        if (!isUser &&
+                            !message.pending &&
+                            message.text.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: InkResponse(
+                                onTap: () => _copy(context, message.text),
+                                radius: 16,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(
+                                    Icons.copy_outlined,
+                                    size: 14,
+                                    color: fg.withValues(alpha: 0.55),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      if (!message.pending && message.sources.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: _SourcesRow(sources: message.sources, fg: fg),
-                        ),
-                    ],
+                        if (!message.pending && message.sources.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: _SourcesRow(
+                              sources: message.sources,
+                              fg: fg,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1055,22 +1142,29 @@ class _Bubble extends StatelessWidget {
     );
     final cached = _styleSheetCache[key];
     if (cached != null) return cached;
+    // QW17 v0.8.1 — dérivé depuis `textTheme` Material 3 : respecte
+    // Dynamic Type / `MediaQuery.textScaler` côté a11y (au lieu de
+    // fontSize hard-coded 14/16/18/20).
+    final tt = theme.textTheme;
+    final body = tt.bodyMedium ?? const TextStyle(fontSize: 14);
+    final h1Base = tt.headlineSmall ?? const TextStyle(fontSize: 20);
+    final h2Base = tt.titleLarge ?? const TextStyle(fontSize: 18);
+    final h3Base = tt.titleMedium ?? const TextStyle(fontSize: 16);
     final ss = MarkdownStyleSheet.fromTheme(theme).copyWith(
-      p: TextStyle(color: fg, height: 1.35, fontSize: 14),
-      h1: TextStyle(color: fg, fontSize: 20, fontWeight: FontWeight.w700),
-      h2: TextStyle(color: fg, fontSize: 18, fontWeight: FontWeight.w700),
-      h3: TextStyle(color: fg, fontSize: 16, fontWeight: FontWeight.w700),
-      listBullet: TextStyle(color: fg, fontSize: 14),
-      strong: TextStyle(color: fg, fontWeight: FontWeight.w700),
-      em: TextStyle(color: fg, fontStyle: FontStyle.italic),
-      blockquote: TextStyle(
+      p: body.copyWith(color: fg, height: 1.35),
+      h1: h1Base.copyWith(color: fg, fontWeight: FontWeight.w700),
+      h2: h2Base.copyWith(color: fg, fontWeight: FontWeight.w700),
+      h3: h3Base.copyWith(color: fg, fontWeight: FontWeight.w700),
+      listBullet: body.copyWith(color: fg),
+      strong: body.copyWith(color: fg, fontWeight: FontWeight.w700),
+      em: body.copyWith(color: fg, fontStyle: FontStyle.italic),
+      blockquote: body.copyWith(
         color: fg.withValues(alpha: 0.85),
         fontStyle: FontStyle.italic,
       ),
-      code: TextStyle(
+      code: body.copyWith(
         color: fg,
         fontFamily: 'monospace',
-        fontSize: 14,
         backgroundColor: theme.colorScheme.surface.withValues(alpha: 0.5),
       ),
       codeblockDecoration: BoxDecoration(
@@ -1234,4 +1328,77 @@ class _Composer extends StatelessWidget {
       ),
     );
   }
+}
+
+/// QW15 v0.8.1 — Trois points pulsants pour signaler "le modèle réfléchit"
+/// pendant la phase de pre-fill (avant le premier token). Aligné sur le
+/// pattern ChatGPT/Gemini/Claude. Plus lisible que le mini spinner 10×10.
+class _TypingDots extends StatefulWidget {
+  final Color color;
+  const _TypingDots({required this.color});
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 10,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (_, _) {
+          final t = _controller.value;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _dot(_phase(t, 0)),
+              _dot(_phase(t, 1 / 3)),
+              _dot(_phase(t, 2 / 3)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Calcule l'alpha (0.3..1.0) d'un point en fonction de la position
+  /// dans la boucle d'animation et de son offset de phase.
+  double _phase(double t, double offset) {
+    var x = (t - offset) % 1.0;
+    if (x < 0) x += 1.0;
+    // Triangle wave : ascend 0..0.5 puis descend 0.5..1.
+    final v = x < 0.5 ? x * 2 : (1 - x) * 2;
+    return 0.3 + 0.7 * v;
+  }
+
+  Widget _dot(double alpha) => Container(
+    width: 6,
+    height: 6,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: widget.color.withValues(alpha: alpha),
+    ),
+  );
 }

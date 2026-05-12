@@ -456,6 +456,22 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
     widget.onDone(result);
   }
 
+  /// QW19 v0.8.1 — reset l'état d'échec et relance la copie depuis le
+  /// même `sourcePath` (évite à l'utilisateur de refaire un pick SAF
+  /// après échec à 95 % sur 6 Go).
+  void _retry() {
+    _sub?.cancel();
+    setState(() {
+      _sub = null;
+      _copied = 0;
+      _total = 0;
+      _finalPath = null;
+      _sha256 = null;
+      _error = null;
+    });
+    _start();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -473,6 +489,14 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
           TextButton(
             onPressed: () => _finish(null),
             child: Text(t.commonClose),
+          ),
+          // QW19 v0.8.1 — bouton "Réessayer" : un import 2-6 Go qui échoue
+          // à 95 % (disk full, kill OS) ne doit pas forcer un re-pick SAF
+          // complet. On reset l'état et relance le stream depuis le même
+          // sourcePath.
+          FilledButton.tonal(
+            onPressed: _retry,
+            child: Text(t.commonRetry),
           ),
         ],
       );
@@ -541,15 +565,11 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
               alignment: Alignment.centerRight,
               child: TextButton.icon(
                 onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
                   await Clipboard.setData(ClipboardData(text: _sha256!));
-                  if (!mounted) return;
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text(t.modelInstallSha256Copied),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  if (!context.mounted) return;
+                  // QW12 v0.8.1 — uniformise sur showFloatingSnack
+                  // (helper centralisé) au lieu du SnackBar direct.
+                  context.showFloatingSnack(t.modelInstallSha256Copied);
                 },
                 icon: const Icon(Icons.copy, size: 16),
                 label: Text(t.modelInstallCopyHash),

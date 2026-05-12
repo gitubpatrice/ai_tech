@@ -97,11 +97,10 @@ abstract class EncryptedJsonStore<T> {
 
   Future<File> _fileFor(String id) async {
     if (!_safeIdPattern.hasMatch(id)) {
-      throw ArgumentError.value(
-        id,
-        'id',
-        'ID invalide (whitelist [a-zA-Z0-9_-]{1,64}).',
-      );
+      // QW8 v0.8.1 — defense-in-depth : ne PAS inclure `id` dans le
+      // message (peut contenir données contrôlées atterrissant dans logs
+      // / crash reports). Le message générique suffit pour le diagnostic.
+      throw ArgumentError('ID invalide (whitelist [a-zA-Z0-9_-]{1,64}).');
     }
     final dir = await _directory();
     return File('${dir.path}/$id$fileExtension');
@@ -192,11 +191,21 @@ abstract class EncryptedJsonStore<T> {
     }
     if (paths.isEmpty) return const [];
     final key = await SecretKey.instance.getOrCreate();
-    final raws = await compute(
+    final result = await compute(
       _decryptAllIsolate,
       _ListJob(paths: paths, key: key, magic: _magic, extension: fileExtension),
     );
-    final items = raws.map(fromJson).toList()..sort(compareDesc);
+    // QW7 v0.8.1 — purge les fichiers corrompus signalés par l'isolate
+    // (clé tournée, magic invalide, tag GCM cassé). Avant : ils restaient
+    // sur disque indéfiniment et étaient re-tentés à chaque listAll.
+    for (final path in result.corruptedPaths) {
+      try {
+        await File(path).delete();
+      } catch (_) {
+        /* best-effort */
+      }
+    }
+    final items = result.items.map(fromJson).toList()..sort(compareDesc);
     return items;
   }
 
@@ -262,6 +271,14 @@ class _ListJob {
   });
 }
 
+/// QW7 v0.8.1 — résultat du worker `_decryptAllIsolate` : sépare les
+/// items décodés des paths corrompus à purger côté main thread.
+class _ListResult {
+  final List<Map<String, dynamic>> items;
+  final List<String> corruptedPaths;
+  const _ListResult({required this.items, required this.corruptedPaths});
+}
+
 /// Worker top-level — chiffre + écrit le tmp en parallèle. Le rename atomique
 /// reste sur main (très court). Évite le freeze UI sur petit téléphone.
 void _encryptAndWriteIsolate(_SaveJob job) {
@@ -273,16 +290,21 @@ void _encryptAndWriteIsolate(_SaveJob job) {
 }
 
 /// Worker top-level — décrypte tous les fichiers `.<ext>` en parallèle.
-/// Les fichiers corrompus sont silencieusement ignorés (le main thread les
-/// supprimera au prochain `load(id)` qui leur tomberait dessus).
-List<Map<String, dynamic>> _decryptAllIsolate(_ListJob job) {
+/// QW7 v0.8.1 — les fichiers corrompus sont reportés au main thread via
+/// `_ListResult.corruptedPaths` pour purge immédiate (sans ça, ils
+/// s'accumulaient indéfiniment sur disque).
+_ListResult _decryptAllIsolate(_ListJob job) {
   final out = <Map<String, dynamic>>[];
+  final corrupted = <String>[];
   final magicLen = job.magic.length;
   final ext = job.extension;
   for (final path in job.paths) {
     try {
       final blob = File(path).readAsBytesSync();
-      if (blob.length < magicLen) continue;
+      if (blob.length < magicLen) {
+        corrupted.add(path);
+        continue;
+      }
       var ok = true;
       for (var i = 0; i < magicLen; i++) {
         if (blob[i] != job.magic[i]) {
@@ -290,7 +312,10 @@ List<Map<String, dynamic>> _decryptAllIsolate(_ListJob job) {
           break;
         }
       }
-      if (!ok) continue;
+      if (!ok) {
+        corrupted.add(path);
+        continue;
+      }
       final body = Uint8List.sublistView(blob, magicLen);
       // L'AAD = id = nom du fichier sans extension.
       final name = path.split(RegExp(r'[\\/]')).last;
@@ -302,8 +327,9 @@ List<Map<String, dynamic>> _decryptAllIsolate(_ListJob job) {
       final json = jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
       out.add(json);
     } catch (_) {
-      // Fichier corrompu : ignoré.
+      // Fichier corrompu : reporté pour purge main thread.
+      corrupted.add(path);
     }
   }
-  return out;
+  return _ListResult(items: out, corruptedPaths: corrupted);
 }
