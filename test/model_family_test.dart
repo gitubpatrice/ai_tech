@@ -98,10 +98,7 @@ void main() {
         ModelFamilyUtils.modelTypeFor(ModelFamily.qwen),
         ModelType.general,
       );
-      expect(
-        ModelFamilyUtils.modelTypeFor(ModelFamily.phi),
-        ModelType.general,
-      );
+      expect(ModelFamilyUtils.modelTypeFor(ModelFamily.phi), ModelType.general);
       expect(
         ModelFamilyUtils.modelTypeFor(ModelFamily.llama),
         ModelType.general,
@@ -206,14 +203,8 @@ void main() {
     });
 
     test('défaut task pour .task ou inconnu', () {
-      expect(
-        ModelFamilyUtils.detectFileType('foo.task'),
-        ModelFileType.task,
-      );
-      expect(
-        ModelFamilyUtils.detectFileType('foo.bin'),
-        ModelFileType.task,
-      );
+      expect(ModelFamilyUtils.detectFileType('foo.task'), ModelFileType.task);
+      expect(ModelFamilyUtils.detectFileType('foo.bin'), ModelFileType.task);
     });
   });
 

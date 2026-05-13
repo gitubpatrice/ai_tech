@@ -126,14 +126,13 @@ class ChatService {
         preferredBackend: backend,
         supportImage: false,
         supportAudio: false,
-        enableSpeculativeDecoding:
-            ModelFamilyUtils.speculativeDecodingFor(_family, fileType),
+        enableSpeculativeDecoding: ModelFamilyUtils.speculativeDecodingFor(
+          _family,
+          fileType,
+        ),
       );
 
-      _chat = await _createChatSession(
-        temperature: temperature,
-        topK: topK,
-      );
+      _chat = await _createChatSession(temperature: temperature, topK: topK);
 
       if (!ModelFamilyUtils.hasNativeSystemRole(_family)) {
         await _injectSystemPrompt();

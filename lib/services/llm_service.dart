@@ -60,8 +60,10 @@ class LlmService {
       preferredBackend: backend,
       supportImage: false,
       supportAudio: false,
-      enableSpeculativeDecoding:
-          ModelFamilyUtils.speculativeDecodingFor(_family, _fileType),
+      enableSpeculativeDecoding: ModelFamilyUtils.speculativeDecodingFor(
+        _family,
+        _fileType,
+      ),
     );
     _session = await _model!.createSession(temperature: 0.7, topK: 40);
   }

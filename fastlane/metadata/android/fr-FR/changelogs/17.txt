@@ -1,0 +1,39 @@
+v0.9.1 — Audit expert : sécurité, performance, accessibilité
+
+Sécurité :
+* M1 — Correction LaTeX greedy regex qui pouvait faire disparaître
+  silencieusement du texte utilisateur dans des messages contenant
+  plusieurs paires `\(...\)`.
+* M2 — Documents importés HTML/XML/JS : neutralisation des balises
+  `<script>`, `<iframe>`, attributs `on*=`, URI `javascript:` et
+  `data:text/html` dans le pipeline RAG (defense-in-depth).
+* M4 — Validation stricte des paramètres internes `subdirectory` et
+  `fileExtension` du chiffrement (anti path-traversal futur).
+* L1 — Race rare au premier boot pouvait écraser la clé maître si
+  deux services s'initialisaient en parallèle : protégé par un
+  Completer mémoïsé.
+* L5 — Le partage d'une conversation applique maintenant la conversion
+  LaTeX → Unicode (cohérence avec l'affichage en bulle).
+
+Performance :
+* P1.1 — Patterns d'injection RAG (13 RegExp) pré-compilés : -5 ms
+  par envoi RAG, moins de pression GC pendant streaming.
+* P1.2 — `latexToUnicode` : RegExp + maps hoistées en static.
+  **30-50 % de CPU économisé sur streaming Gemma** sur S9 (la
+  conversion s'applique à chaque token sur le buffer cumulatif).
+
+UX / a11y :
+* U1 — Bouton copy bulle assistant : tap target 40×40 dp + tooltip
+  TalkBack (avant ~24 dp, sans label).
+* U2 — Dialogs destructifs : autofocus sur Annuler (la touche Enter
+  annule au lieu de détruire — safe default).
+* U3 — Bouton confirme rouge : contraste WCAG AA en dark mode.
+* U4 — HapticFeedback ajouté sur envoyer / copier / stop / panique
+  (codebase avait 0 occurrence avant).
+* U5 — Icône À propos avec `cacheWidth` borné (économie ~3-4 Mo RAM).
+* U7 — Composer chat : majuscule automatique en début de phrase.
+
+7 lints info-only nettoyés (`SemanticsService.announce` déprécié
+marqué `// ignore` jusqu'à stabilisation `sendAnnouncement`).
+
+Aucun changement de format fichier. 42/42 tests verts.

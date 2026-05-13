@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart'
+    show Clipboard, ClipboardData, HapticFeedback;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
@@ -151,9 +152,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (confirm != true || !mounted) return;
 
+    // U4 v0.9.1 — feedback haptique fort sur déclenchement panic (action
+    // critique, irréversible) : signal tactile clair même si l'écran est
+    // détourné.
+    HapticFeedback.heavyImpact();
     setState(() => _busy = true);
     await PanicService.instance.trigger();
     if (!mounted) return;
+    // ignore: deprecated_member_use
     SemanticsService.announce(t.settingsPanicAnnounceDone, TextDirection.ltr);
     AiTechApp.refreshFirstLaunch();
     Navigator.of(context).popUntil((r) => r.isFirst);
@@ -170,6 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final msg = lc == 'en'
         ? AppLocalizations.of(context).settingsLanguageChangedEn
         : AppLocalizations.of(context).settingsLanguageChangedFr;
+    // ignore: deprecated_member_use
     SemanticsService.announce(msg, TextDirection.ltr);
   }
 

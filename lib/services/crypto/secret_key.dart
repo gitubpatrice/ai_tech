@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -40,21 +41,46 @@ class SecretKey {
 
   Uint8List? _cached;
 
+  /// **L1 v0.9.1** — Memoization de l'opération asynchrone : sans ça, deux
+  /// callers concurrents au tout premier boot (`RagService.bootstrap` et
+  /// `_bootstrap` chat par ex.) pouvaient TOUS DEUX passer le check
+  /// `_cached == null` → lire `_storage.read` qui renvoie `null` → générer
+  /// chacun une clé fraîche → la seconde écrasait la première dans le
+  /// storage, rendant les blobs déjà chiffrés avec la clé A définitivement
+  /// illisibles.
+  ///
+  /// Avec le `Completer`, le 2e caller attend simplement le résultat du 1er.
+  Completer<Uint8List>? _pending;
+
   /// Récupère la clé. La crée si elle n'existe pas encore.
   Future<Uint8List> getOrCreate() async {
     if (_cached != null) return _cached!;
-    final existing = await _storage.read(key: _kSecretKey);
-    if (existing != null && existing.isNotEmpty) {
-      final key = base64Decode(existing);
-      if (key.length == 32) {
-        _cached = key;
-        return key;
+    // Un autre caller a déjà commencé le travail → on s'aligne dessus.
+    final pending = _pending;
+    if (pending != null) return pending.future;
+
+    final completer = _pending = Completer<Uint8List>();
+    try {
+      final existing = await _storage.read(key: _kSecretKey);
+      if (existing != null && existing.isNotEmpty) {
+        final key = base64Decode(existing);
+        if (key.length == 32) {
+          _cached = key;
+          completer.complete(key);
+          return key;
+        }
       }
+      final fresh = app.SecureRandom().nextBytes(32);
+      await _storage.write(key: _kSecretKey, value: base64Encode(fresh));
+      _cached = fresh;
+      completer.complete(fresh);
+      return fresh;
+    } catch (e, st) {
+      completer.completeError(e, st);
+      rethrow;
+    } finally {
+      _pending = null;
     }
-    final fresh = app.SecureRandom().nextBytes(32);
-    await _storage.write(key: _kSecretKey, value: base64Encode(fresh));
-    _cached = fresh;
-    return fresh;
   }
 
   /// Supprime la clé (utilisé par le mode panique).
@@ -79,6 +105,7 @@ class SecretKey {
       }
     }
     _cached = null;
+    _pending = null;
     try {
       await _storage.delete(key: _kSecretKey);
     } catch (_) {

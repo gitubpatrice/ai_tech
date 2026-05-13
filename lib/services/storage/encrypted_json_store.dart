@@ -37,7 +37,27 @@ import '../crypto/secret_key.dart';
 /// [fromJson], [toJson], [idOf], [compareDesc]. Voir [EncryptedChatStore] et
 /// [DocumentStore].
 abstract class EncryptedJsonStore<T> {
-  EncryptedJsonStore();
+  EncryptedJsonStore() {
+    // M4 v0.9.1 — Defense-in-depth : whitelist stricte du subdirectory et
+    // de l'extension fournis par la sous-classe. Aujourd'hui ils sont
+    // hardcodés (`chats`, `documents`, `models_registry` / `.aichat`,
+    // `.aidoc`), mais une future sous-classe avec un sous-dir dynamique
+    // ouvrirait un path-traversal sans cette garde (la whitelist `_safeIdPattern`
+    // ne couvre que l'id, pas le sous-dir).
+    if (!_safeSubdirPattern.hasMatch(subdirectory)) {
+      throw ArgumentError(
+        'subdirectory doit matcher [a-z_]+ (reçu : "$subdirectory")',
+      );
+    }
+    if (!_safeExtPattern.hasMatch(fileExtension)) {
+      throw ArgumentError(
+        'fileExtension doit matcher \\.[a-z0-9]+ (reçu : "$fileExtension")',
+      );
+    }
+  }
+
+  static final RegExp _safeSubdirPattern = RegExp(r'^[a-z_]+$');
+  static final RegExp _safeExtPattern = RegExp(r'^\.[a-z0-9]+$');
 
   /// Nom du sous-dossier dans `getApplicationDocumentsDirectory()`.
   /// Exemple : `'chats'`, `'documents'`.

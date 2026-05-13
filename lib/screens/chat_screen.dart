@@ -267,8 +267,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // Si la stored est 'gemma' (cas typique pré-upgrade ou register
       // ancien) et que la detect actuelle pointe vers 'gemma4', on
       // privilégie la detect actuelle.
-      final family = (stored == ModelFamily.gemma &&
-              detected == ModelFamily.gemma4)
+      final family =
+          (stored == ModelFamily.gemma && detected == ModelFamily.gemma4)
           ? detected
           : stored;
 
@@ -326,6 +326,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty || _generating || !_chat.isLoaded) return;
 
+    // U4 v0.9.1 — feedback haptique léger sur send : confirme tactilement
+    // l'action quand l'utilisateur regarde ailleurs.
+    HapticFeedback.selectionClick();
+
     // QW11 v0.8.1 — protège la race double-tap : `_generating = true`
     // AVANT le 1er `await`. Sans ça, deux taps rapprochés re-rentraient
     // dans la fenêtre async `await _activeSub?.cancel()` et ajoutaient
@@ -357,6 +361,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _session.messages.add(assistantMsg);
       _session.updatedAt = DateTime.now();
     });
+    // ignore: deprecated_member_use
     SemanticsService.announce(t.chatAnnounceGenerationStart, TextDirection.ltr);
     _scheduleScrollToBottom();
 
@@ -400,6 +405,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             assistantMsg.pending = false;
             _session.updatedAt = DateTime.now();
             setState(() => _generating = false);
+            // ignore: deprecated_member_use
             SemanticsService.announce(
               t.chatAnnounceGenerationDone,
               TextDirection.ltr,
@@ -412,6 +418,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _stop() async {
     final t = AppLocalizations.of(context);
+    // U4 v0.9.1 — feedback haptique sur stop génération (action plus
+    // impactante que send, on prend `mediumImpact`).
+    HapticFeedback.mediumImpact();
     await _chat.cancelGeneration();
     await _activeSub?.cancel();
     _activeSub = null;
@@ -425,6 +434,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         }
       }
     });
+    // ignore: deprecated_member_use
     SemanticsService.announce(
       t.chatAnnounceGenerationCancelled,
       TextDirection.ltr,
@@ -514,11 +524,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       )
       ..writeln();
     for (final m in completed) {
+      // L5 v0.9.1 — Appliquer `latexToUnicode` au texte exporté pour cohérence
+      // avec l'affichage en bulle. Avant : l'export contenait le LaTeX brut
+      // (`$\text{H}_2\text{O}$`) alors que l'utilisateur voyait `H₂O` à
+      // l'écran — incohérence trompeuse au moment du partage.
+      final rendered = m.isUser ? m.text : latexToUnicode(m.text);
       buf
         ..writeln(
           m.isUser ? t.chatExportSpeakerUser : t.chatExportSpeakerAssistant,
         )
-        ..writeln(_escapeMarkdownExport(m.text))
+        ..writeln(_escapeMarkdownExport(rendered))
         ..writeln();
     }
     await Share.share(buf.toString(), subject: t.chatExportSubject);
@@ -877,9 +892,9 @@ class _ErrorState extends StatelessWidget {
               header: true,
               child: Text(
                 t.chatStatusLoadFailed,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 8),
@@ -1127,16 +1142,24 @@ class _Bubble extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Align(
                               alignment: Alignment.centerRight,
-                              child: InkResponse(
-                                onTap: () => _copy(context, message.text),
-                                radius: 16,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(4),
-                                  child: Icon(
-                                    Icons.copy_outlined,
-                                    size: 14,
-                                    color: fg.withValues(alpha: 0.55),
-                                  ),
+                              // U1 v0.9.1 — `IconButton` avec tap target 40dp
+                              // minimum + tooltip pour TalkBack. Avant :
+                              // `InkResponse(radius:16)` + `Icon(size:14)` =
+                              // cible ~24dp (< 48dp WCAG 2.5.5), pas de
+                              // label TalkBack.
+                              child: IconButton(
+                                onPressed: () => _copy(context, message.text),
+                                iconSize: 16,
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(
+                                  minWidth: 40,
+                                  minHeight: 40,
+                                ),
+                                tooltip: t.chatCopySnack,
+                                icon: Icon(
+                                  Icons.copy_outlined,
+                                  color: fg.withValues(alpha: 0.55),
                                 ),
                               ),
                             ),
@@ -1241,6 +1264,8 @@ class _Bubble extends StatelessWidget {
     if (text.isEmpty) return;
     final t = AppLocalizations.of(context);
     Clipboard.setData(ClipboardData(text: text));
+    // U4 v0.9.1 — feedback haptique sur copie réussie.
+    HapticFeedback.selectionClick();
     context.showFloatingSnack(
       t.chatCopySnack,
       duration: const Duration(seconds: 1),
@@ -1344,6 +1369,11 @@ class _Composer extends StatelessWidget {
               minLines: 1,
               maxLines: 5,
               textInputAction: TextInputAction.newline,
+              // U7 v0.9.1 — composer chat : majuscule auto en début de
+              // phrase (UX FR/EN naturelle). `autocorrect`/`enableSuggestions`
+              // gardés à `true` car prompt IA = on veut bénéficier de
+              // l'aide saisie.
+              textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 labelText: labelMessage,
                 hintText: generating ? hintGenerating : hintMessage,

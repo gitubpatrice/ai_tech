@@ -101,6 +101,11 @@ class _Header extends StatelessWidget {
               'assets/icon/ai_tech_icon.png',
               width: 96,
               height: 96,
+              // U5 v0.9.1 — `cacheWidth` borné (2× pour HiDPI) : sans ça,
+              // le PNG source 1024×1024 était décodé à pleine résolution
+              // pour afficher 96 dp → ~3-4 Mo RAM permanent inutile.
+              cacheWidth: 192,
+              cacheHeight: 192,
               fit: BoxFit.cover,
             ),
           ),

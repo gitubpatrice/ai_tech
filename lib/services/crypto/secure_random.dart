@@ -14,12 +14,18 @@ class SecureRandom {
   static final SecureRandom _instance = SecureRandom._();
   factory SecureRandom() => _instance;
 
+  /// **L2 v0.9.1** — `Random.secure()` cached statique. Avant : instancié à
+  /// chaque appel `nextBytes`. Pas de faille crypto (chaque instance puise
+  /// `/dev/urandom`), mais coût syscall amortit mal pour génération en
+  /// boucle (ex. `listAll` à 100 chats = 100 nouveaux nonces × instance
+  /// neuve à chaque fois).
+  static final math.Random _rng = math.Random.secure();
+
   /// Renvoie [length] octets aléatoires.
   Uint8List nextBytes(int length) {
-    final rng = math.Random.secure();
     final out = Uint8List(length);
     for (var i = 0; i < length; i++) {
-      out[i] = rng.nextInt(256);
+      out[i] = _rng.nextInt(256);
     }
     return out;
   }

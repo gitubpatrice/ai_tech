@@ -24,24 +24,19 @@ void main() {
   });
 
   test('encrypt/decrypt round-trip avec AAD (id de fichier)', () {
-    final plaintext =
-        utf8.encode('{"foo":"bar","n":42}');
+    final plaintext = utf8.encode('{"foo":"bar","n":42}');
     final aad = utf8.encode('chat-1234');
     final blob = AesGcm.encrypt(key, plaintext, aad: aad);
     final decoded = AesGcm.decrypt(key, blob, aad: aad);
     expect(decoded, equals(plaintext));
   });
 
-  test('AAD différente entre encrypt et decrypt fait échouer le tag',
-      () {
+  test('AAD différente entre encrypt et decrypt fait échouer le tag', () {
     final plaintext = utf8.encode('secret');
     final aadEnc = utf8.encode('chat-1');
     final aadDec = utf8.encode('chat-2');
     final blob = AesGcm.encrypt(key, plaintext, aad: aadEnc);
-    expect(
-      () => AesGcm.decrypt(key, blob, aad: aadDec),
-      throwsArgumentError,
-    );
+    expect(() => AesGcm.decrypt(key, blob, aad: aadDec), throwsArgumentError);
   });
 
   test('blob altéré (1 octet flippé) fait échouer le tag GCM', () {
@@ -66,9 +61,6 @@ void main() {
 
   test('clé de mauvaise longueur lève ArgumentError', () {
     final badKey = Uint8List(16);
-    expect(
-      () => AesGcm.encrypt(badKey, Uint8List(0)),
-      throwsArgumentError,
-    );
+    expect(() => AesGcm.encrypt(badKey, Uint8List(0)), throwsArgumentError);
   });
 }

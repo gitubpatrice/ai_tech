@@ -11,7 +11,8 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 /// Mock de path_provider qui renvoie un répertoire temporaire
 /// pour `getApplicationSupportDirectory()`.
-class _FakePathProvider extends PathProviderPlatform with MockPlatformInterfaceMixin {
+class _FakePathProvider extends PathProviderPlatform
+    with MockPlatformInterfaceMixin {
   _FakePathProvider(this.root);
   final Directory root;
 
@@ -38,7 +39,9 @@ void main() {
   tearDown(() {
     try {
       tmpRoot.deleteSync(recursive: true);
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   });
 
   test(

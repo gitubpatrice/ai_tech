@@ -58,6 +58,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _goStep2() {
     setState(() => _step = 1);
     final t = AppLocalizations.of(context);
+    // ignore: deprecated_member_use
     SemanticsService.announce(t.onboardingAnnounceStep2, TextDirection.ltr);
   }
 

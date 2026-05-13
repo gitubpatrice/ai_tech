@@ -176,8 +176,9 @@ class ModelPickerScreen extends StatelessWidget {
         withData: false,
       );
     } catch (e) {
-      if (context.mounted)
+      if (context.mounted) {
         context.showFloatingSnack(t.modelPickerSysError('$e'));
+      }
       return;
     }
     final picked0 = picked?.files.isNotEmpty == true
@@ -563,10 +564,7 @@ class _InstallProgressDialogState extends State<_InstallProgressDialog> {
           // à 95 % (disk full, kill OS) ne doit pas forcer un re-pick SAF
           // complet. On reset l'état et relance le stream depuis le même
           // sourcePath.
-          FilledButton.tonal(
-            onPressed: _retry,
-            child: Text(t.commonRetry),
-          ),
+          FilledButton.tonal(onPressed: _retry, child: Text(t.commonRetry)),
         ],
       );
     }

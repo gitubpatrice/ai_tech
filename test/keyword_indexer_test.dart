@@ -24,11 +24,13 @@ void main() {
 
     test('index puis search renvoie un hit pertinent', () async {
       final indexer = KeywordIndexer.instance;
-      await indexer.index(_doc(
-        'doc1',
-        'La photosynthèse transforme le dioxyde de carbone et l\'eau en '
-            'glucose grâce à la lumière du soleil.',
-      ));
+      await indexer.index(
+        _doc(
+          'doc1',
+          'La photosynthèse transforme le dioxyde de carbone et l\'eau en '
+              'glucose grâce à la lumière du soleil.',
+        ),
+      );
 
       final hits = await indexer.search('photosynthèse glucose');
       expect(hits, isNotEmpty);
@@ -68,9 +70,11 @@ void main() {
         // _opChain, on aurait des ConcurrentModificationError sur _postings.
         final futures = <Future<void>>[];
         for (var i = 0; i < 10; i++) {
-          futures.add(indexer.index(
-            _doc('doc-$i', 'Texte numéro $i avec tokens uniques alpha$i'),
-          ));
+          futures.add(
+            indexer.index(
+              _doc('doc-$i', 'Texte numéro $i avec tokens uniques alpha$i'),
+            ),
+          );
         }
         await Future.wait(futures);
 
@@ -86,8 +90,7 @@ void main() {
       },
     );
 
-    test('search avec tokens trop courts ou stop-words renvoie vide',
-        () async {
+    test('search avec tokens trop courts ou stop-words renvoie vide', () async {
       final indexer = KeywordIndexer.instance;
       await indexer.index(_doc('doc1', 'Ceci est un document avec du texte.'));
       // 'le', 'un', etc. sont stop-words ou < 3 chars.
@@ -104,8 +107,11 @@ void main() {
       // Réindexation avec un texte totalement différent.
       await indexer.index(_doc('doc1', 'voiture moto vélo'));
       hits = await indexer.search('banane');
-      expect(hits, isEmpty,
-          reason: 'l\'ancien contenu de doc1 doit être purgé');
+      expect(
+        hits,
+        isEmpty,
+        reason: 'l\'ancien contenu de doc1 doit être purgé',
+      );
       hits = await indexer.search('voiture');
       expect(hits, isNotEmpty);
     });

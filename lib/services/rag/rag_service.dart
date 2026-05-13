@@ -178,6 +178,72 @@ class RagService {
   /// 3. **NFKC normalize** pour ramener les variants Unicode (caractères
   ///    fullwidth `Ｉｇｎｏｒｅ`, ligatures, formes compatibilité) vers la
   ///    forme canonique avant matching regex.
+  /// **P1.1 v0.9.1** — Patterns d'injection pré-compilés (avant : 13 RegExp
+  /// re-construits à chaque appel `_sanitize`, lui-même appelé 2 fois par
+  /// chunk RAG × 4 chunks = 8 invocations par envoi → ~5 ms gaspillés + GC
+  /// churn pendant streaming).
+  static final List<RegExp> _injectionPatterns = <RegExp>[
+    RegExp(r'\[\s*INST\s*\]', caseSensitive: false),
+    RegExp(r'\[\s*/\s*INST\s*\]', caseSensitive: false),
+    RegExp(r'<\|\s*[a-z_]+\s*\|>', caseSensitive: false),
+    RegExp(r'<\s*\|\s*[a-z_]+\s*\|\s*>', caseSensitive: false),
+    RegExp(r'<\|\s*"\s*\|>'),
+    RegExp(r'<\s*/?\s*[a-z_]+\s*\|\s*>', caseSensitive: false),
+    RegExp(
+      r'<(start_of_turn|end_of_turn|bos|eos|pad|unk|mask)>',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'[\r\n]\s*(user|model|system|assistant)\s*[\r\n]',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'(^|[\r\n])\s*###\s+(System|Instruction|Réponse|Nouvelle\s+instruction)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'(^|[\r\n])\s*Tu\s+es\s+(maintenant|désormais|à\s+présent)\b',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'(^|[\r\n])\s*You\s+are\s+(now|from\s+now\s+on)\b',
+      caseSensitive: false,
+    ),
+    RegExp(r'(^|[\r\n])\s*(System|Assistant)\s*:', caseSensitive: false),
+    RegExp(
+      r'(^|[\r\n])\s*Ignore\s+(previous|all|toutes?\s+les?)\s+instructions?',
+      caseSensitive: false,
+    ),
+  ];
+
+  /// **M2 v0.9.1** — Patterns HTML/JS dangereux strippés pour les documents
+  /// importés en `.html`, `.xml`, `.js`. Defense-in-depth si un futur
+  /// MarkdownBody active inline HTML.
+  static final List<RegExp> _htmlDangerousPatterns = <RegExp>[
+    RegExp(
+      r'<\s*script\b[^>]*>[\s\S]*?<\s*/\s*script\s*>',
+      caseSensitive: false,
+    ),
+    RegExp(r'<\s*script\b[^>]*/?>', caseSensitive: false),
+    RegExp(
+      r'<\s*iframe\b[^>]*>[\s\S]*?<\s*/\s*iframe\s*>',
+      caseSensitive: false,
+    ),
+    RegExp(r'<\s*iframe\b[^>]*/?>', caseSensitive: false),
+    RegExp(
+      r'<\s*object\b[^>]*>[\s\S]*?<\s*/\s*object\s*>',
+      caseSensitive: false,
+    ),
+    RegExp(r'<\s*embed\b[^>]*/?>', caseSensitive: false),
+    RegExp(r'\bjavascript\s*:', caseSensitive: false),
+    RegExp(r'\bdata\s*:\s*text/html', caseSensitive: false),
+    RegExp(r'\bon[a-z]+\s*=\s*"[^"]*"', caseSensitive: false),
+    RegExp(r"\bon[a-z]+\s*=\s*'[^']*'", caseSensitive: false),
+  ];
+
+  /// Cap pré-compilé base64 (M2 v0.9.1 : pré-existant inline).
+  static final RegExp _reBase64Long = RegExp(r'[A-Za-z0-9+/]{40,}={0,2}');
+
   static String _sanitize(String s, int max) {
     // 1. Strip caractères de contrôle bidi + zero-width (avant truncate
     //    pour ne pas comptabiliser ces octets dans le quota de chars).
@@ -193,61 +259,16 @@ class RagService {
         : stripped;
     // 3. Neutralise les blocs base64 longs (40+ chars, charset strict).
     //    Couvre une instruction encodée que Gemma sait décoder/exécuter.
-    clipped = clipped.replaceAll(
-      RegExp(r'[A-Za-z0-9+/]{40,}={0,2}'),
-      '·[base64 neutralisé]·',
-    );
-    // Neutralise les balises de prompt courantes :
-    // - Llama : [INST] / [/INST]
-    // - ChatML / Llama 3 : <|system|>, <|im_start|>, <|begin_of_text|>,
-    //   <|end_of_text|>, <|eot_id|>, <|endoftext|>
-    // - Gemma : <start_of_turn>, <end_of_turn>, <bos>, <eos>
-    // - Tour Gemma déguisé : "\nuser\n" / "\nmodel\n" en délimiteur
-    // - Instructions impératives en début de ligne (### System, etc.)
-    // [\r\n] couvre LF, CR (legacy Mac) et CRLF — pas seulement \n.
-    final patterns = <RegExp>[
-      RegExp(r'\[\s*INST\s*\]', caseSensitive: false),
-      RegExp(r'\[\s*/\s*INST\s*\]', caseSensitive: false),
-      // <|im_start|>, <|im_end|>, <|system|>, <|user|>, <|tool|>,
-      // <|tool_response|>, <|tool_call|>, <|turn|>, <|channel|>,
-      // <|image|>, <|audio|>, <|video|> (Gemma 4 chat template)
-      RegExp(r'<\|\s*[a-z_]+\s*\|>', caseSensitive: false),
-      // v0.8.0 — variant espacé : "< | tool | >"
-      RegExp(r'<\s*\|\s*[a-z_]+\s*\|\s*>', caseSensitive: false),
-      // v0.8.0 — Gemma 4 token littéral guillemet : <|"|>
-      RegExp(r'<\|\s*"\s*\|>'),
-      // v0.8.0 — Gemma 4 fermeture inversée : <tool|> et </tool|>
-      RegExp(r'<\s*/?\s*[a-z_]+\s*\|\s*>', caseSensitive: false),
-      // <bos>, <eos>, <pad>, <unk>, <mask>, <start_of_turn>, <end_of_turn>
-      RegExp(
-        r'<(start_of_turn|end_of_turn|bos|eos|pad|unk|mask)>',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'[\r\n]\s*(user|model|system|assistant)\s*[\r\n]',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'(^|[\r\n])\s*###\s+(System|Instruction|Réponse|Nouvelle\s+instruction)',
-        caseSensitive: false,
-      ),
-      // Injections en français/anglais en début de ligne : "Tu es maintenant…",
-      // "You are now…", "System:", "Assistant:", "Ignore previous instructions"
-      RegExp(
-        r'(^|[\r\n])\s*Tu\s+es\s+(maintenant|désormais|à\s+présent)\b',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'(^|[\r\n])\s*You\s+are\s+(now|from\s+now\s+on)\b',
-        caseSensitive: false,
-      ),
-      RegExp(r'(^|[\r\n])\s*(System|Assistant)\s*:', caseSensitive: false),
-      RegExp(
-        r'(^|[\r\n])\s*Ignore\s+(previous|all|toutes?\s+les?)\s+instructions?',
-        caseSensitive: false,
-      ),
-    ];
-    for (final p in patterns) {
+    clipped = clipped.replaceAll(_reBase64Long, '·[base64 neutralisé]·');
+    // 4. Neutralise les balises de prompt courantes (pré-compilées P1.1
+    //    v0.9.1 — voir [_injectionPatterns]).
+    for (final p in _injectionPatterns) {
+      clipped = clipped.replaceAll(p, '·');
+    }
+    // 5. **M2 v0.9.1** — Neutralise script/iframe/javascript: pour les
+    //    documents importés en HTML/XML/JS qui passent par le RAG. Defense
+    //    in depth si un futur MarkdownBody active inline HTML.
+    for (final p in _htmlDangerousPatterns) {
       clipped = clipped.replaceAll(p, '·');
     }
     return clipped;

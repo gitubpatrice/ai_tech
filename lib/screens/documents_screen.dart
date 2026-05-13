@@ -320,10 +320,7 @@ class _DocTile extends StatelessWidget {
         trailing: IconButton(
           tooltip: t.commonDelete,
           // v0.8.0 — corbeille rouge pour visibilité destructive.
-          icon: Icon(
-            Icons.delete_outline,
-            color: theme.colorScheme.error,
-          ),
+          icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
           onPressed: onDelete,
         ),
       ),

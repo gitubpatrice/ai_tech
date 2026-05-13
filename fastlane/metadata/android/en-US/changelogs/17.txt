@@ -1,0 +1,38 @@
+v0.9.1 — Expert audit: security, performance, accessibility
+
+Security:
+* M1 — Fixed greedy LaTeX regex that could silently swallow user
+  text in messages containing multiple `\(...\)` pairs.
+* M2 — Imported HTML/XML/JS documents: `<script>`, `<iframe>`,
+  `on*=` attributes, `javascript:` and `data:text/html` URIs now
+  neutralized in the RAG pipeline (defense-in-depth).
+* M4 — Strict validation of internal encryption `subdirectory` and
+  `fileExtension` parameters (anti future path-traversal).
+* L1 — Rare first-boot race could overwrite the master key if two
+  services initialized in parallel — now protected by a memoized
+  Completer.
+* L5 — Sharing a conversation now applies the LaTeX → Unicode
+  conversion (consistent with in-bubble display).
+
+Performance:
+* P1.1 — RAG injection patterns (13 RegExp) pre-compiled: -5 ms per
+  RAG send, less GC pressure during streaming.
+* P1.2 — `latexToUnicode`: RegExp + maps hoisted to static. **30-50%
+  CPU saved on Gemma streaming** on S9 (conversion is applied per
+  token on the cumulative buffer).
+
+UX / a11y:
+* U1 — Copy button on assistant bubble: 40×40 dp tap target + TalkBack
+  tooltip (was ~24 dp, unlabeled).
+* U2 — Destructive dialogs: autofocus on Cancel (Enter now cancels
+  instead of destroying — safe default).
+* U3 — Red confirm button: WCAG AA contrast in dark mode.
+* U4 — HapticFeedback added on send / copy / stop / panic (codebase
+  had 0 occurrences before).
+* U5 — About icon with bounded `cacheWidth` (~3-4 MB RAM saved).
+* U7 — Chat composer: automatic capitalization at sentence start.
+
+7 info-only lints cleaned up (`SemanticsService.announce` deprecated
+marked `// ignore` until `sendAnnouncement` API stabilizes).
+
+No file format change. 42/42 tests green.

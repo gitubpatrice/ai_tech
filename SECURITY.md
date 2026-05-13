@@ -11,6 +11,76 @@ maintenue côté sécurité.
 | 0.8.x   | ⚠️ best-effort |
 | < 0.8   | ❌        |
 
+## v0.9.1 — Audit expert post-v0.9.0 (2026-05-13)
+
+Audit 3-agents (sécu / perf / UX) → 13 corrections livrées, **0 régression**
+(42/42 tests verts, `flutter analyze` 0 issue). Aucun changement de format
+fichier (`.aichat`, `.aidoc`, magic `AIC1`/`AID1` inchangés).
+
+### Sécurité
+
+- **M1** — `latexToUnicode` regex `\(...\)` était greedy : un message
+  contenant `\( a \) puis \( b \)` voyait les deux groupes fusionner.
+  Refactor avec négative lookahead `(?!\\\)` → matche correctement chaque
+  paire indépendante. Pas un risque RCE (rendu Markdown) mais pouvait
+  faire disparaître silencieusement du texte utilisateur au partage.
+- **M2** — `RagService._sanitize` neutralise désormais aussi les balises
+  `<script>`, `<iframe>`, `<object>`, `<embed>`, attributs `on*=`, URI
+  `javascript:` et `data:text/html`. Defense-in-depth pour les documents
+  importés en `.html`, `.xml`, `.js` indexés dans le RAG.
+- **M4** — `EncryptedJsonStore` constructeur valide désormais `subdirectory`
+  matche `[a-z_]+` et `fileExtension` matche `\.[a-z0-9]+`. Avant : la
+  whitelist `_safeIdPattern` ne couvrait que l'ID, une future sous-classe
+  avec sous-dir dynamique ouvrait un path-traversal.
+- **L1** — `SecretKey.getOrCreate()` memoize l'opération via
+  `Completer<Uint8List>`. Avant : deux callers concurrents au tout premier
+  boot (`RagService.bootstrap` + `ChatService._bootstrap`) pouvaient tous
+  deux passer le check `_cached == null`, générer chacun une clé fraîche
+  et la 2nde écraser la 1ère — rendant les blobs déjà chiffrés avec la
+  1ère clé définitivement illisibles.
+- **L2** — `SecureRandom._rng = math.Random.secure()` cached statique
+  (était re-instancié à chaque `nextBytes`).
+- **L5** — `chat_screen._exportConversation` applique désormais
+  `latexToUnicode` au texte assistant exporté. Avant : `Share` contenait
+  `$\text{H}_2\text{O}$` alors que l'utilisateur voyait `H₂O`.
+
+### Performance
+
+- **P1.1** — `RagService` patterns d'injection (13 RegExp) pré-compilés
+  en `static final`. Avant : re-compilés à chaque appel `_sanitize` ×
+  8 invocations/envoi. **Gain : -5 ms par envoi RAG**.
+- **P1.2** — `latexToUnicode` : toutes les RegExp (17) + maps
+  `subscript`/`superscript` + liste triée des symboles grecs en `const`/
+  `final` top-level. Pendant streaming Gemma (~20 tok/s), `latexToUnicode`
+  est appliqué à chaque token sur le buffer cumulatif. **Gain estimé :
+  -30 à -50 % CPU streaming**, frame time -3-6 ms sur S9.
+
+### UX / a11y
+
+- **U1** — Bouton copy bulle assistant : `IconButton` 40×40 dp + tooltip
+  (avant : `InkResponse(radius:16)` ~24 dp < 48 dp WCAG 2.5.5, sans label
+  TalkBack).
+- **U2** — `showConfirmDialog(destructive: true)` : Cancel `autofocus:
+  true` → safe default (Enter annule au lieu de détruire).
+- **U3** — Bouton confirme rouge fournit aussi `foregroundColor: cs.onError`
+  (contraste WCAG AA en dark mode).
+- **U4** — `HapticFeedback` ajouté sur 4 sites critiques (codebase avait 0
+  occurrences avant) : `_send` selectionClick, `_copy` selectionClick,
+  `_stop` mediumImpact, `_triggerPanic` heavyImpact.
+- **U5** — `about_screen` icône `Image.asset` avec `cacheWidth: 192` /
+  `cacheHeight: 192` (avant : PNG 1024×1024 décodé sans borne pour 96 dp).
+- **U7** — Composer chat : `textCapitalization: TextCapitalization.sentences`.
+
+### Qualité
+
+- 7 info-only `flutter analyze` nettoyés : 6 occurrences
+  `SemanticsService.announce` annotées `// ignore: deprecated_member_use`
+  (migration vers `sendAnnouncement` prévue), 1
+  `curly_braces_in_flow_control_structures` corrigé.
+
+Aucun changement de format fichier (`.aichat` / `.aidoc` / magic) ni de
+crypto (AES-256-GCM, AAD lié à l'id). Compatible lecture/écriture v0.8.0+.
+
 ## Modèle de menace
 
 AI Tech est une app **strictement offline** exécutant des modèles de

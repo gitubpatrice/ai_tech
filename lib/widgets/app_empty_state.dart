@@ -40,9 +40,7 @@ class AppEmptyState extends StatelessWidget {
     final titleWidget = Text(
       title,
       textAlign: TextAlign.center,
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
+      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
     );
     return Center(
       child: Padding(

@@ -88,8 +88,7 @@ class ModelFamilyUtils {
   }
 
   /// Variante prenant directement le nom court stocké en JSON.
-  static String displayLabelFromName(String s) =>
-      displayLabel(fromName(s));
+  static String displayLabelFromName(String s) => displayLabel(fromName(s));
 
   /// Nom affichable d'un modèle à partir de son path. Retire le séparateur
   /// de path (Windows ou Unix) et l'extension `.task` / `.litertlm`.
