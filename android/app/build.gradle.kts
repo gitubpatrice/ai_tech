@@ -57,22 +57,23 @@ android {
         }
     }
 
-    // Splits ABI : un APK par architecture (arm64-v8a / armeabi-v7a / x86_64),
-    // au lieu d'un universel qui embarque les 3 et pèse +30-60 Mo (MediaPipe +
-    // libtensorflowlite + libc++_shared × 3). L'utilisateur télécharge ~1/3
-    // de la taille — critique pour POCO C75 / S9 (stockage limité).
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            // v0.9.2 (#1) — passé à `false` (audit cohérence portfolio Files Tech) :
-            // un 4e APK universel (~3× plus lourd) en plus des 3 splits gonflait
-            // la release sans être distribué sur F-Droid. Aligné Pass / Notes /
-            // SMS Tech / PDF Tech / Read Files Tech.
-            isUniversalApk = false
-        }
-    }
+    // Splits ABI : bloc retiré v0.9.2.1 hotfix CI.
+    //
+    // Cause : depuis Flutter 3.41+, le SDK pose
+    // `ndk.abiFilters = [armeabi-v7a, arm64-v8a, x86_64]` automatiquement.
+    // Avoir aussi `splits.abi { include(...) }` déclenche au build :
+    //   "Conflicting configuration : '...' in ndk abiFilters cannot be
+    //    present when splits abi filters are set"
+    //
+    // Le workflow GH Actions Release utilise `flutter build apk --release`
+    // (sans `--split-per-abi`) → besoin d'un APK universal → conflit.
+    //
+    // Pattern : passer par `flutter build apk --release --split-per-abi`
+    // (flag explicite) pour obtenir 3 APKs splits côté local. Sans flag :
+    // `flutter build apk --release` génère 1 APK universal (CI Release).
+    //
+    // Aligné RFT v2.13.1 hotfix CI et Pass / Notes Tech (qui n'ont jamais
+    // eu ce bloc).
 
     // Splits ABI côté AAB (Play Store / F-Droid). Identique à `splits.abi`
     // mais via la pipeline App Bundle.
