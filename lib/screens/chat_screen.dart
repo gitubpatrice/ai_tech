@@ -368,7 +368,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     String prompt = text;
     List<RagSource> sources = const [];
     if (_ragEnabled) {
-      await RagService.instance.bootstrap();
+      // v0.9.2 (#7) — bootstrap déjà appelé au boot (main.dart:72) et au
+      // _bootstrap du ChatScreen (ligne 128). L'appel ici était redondant
+      // (guard `_booted` interne → no-op). Retiré pour clarté.
       if (!RagService.instance.isEmpty) {
         final aug = await RagService.instance.augmentPrompt(text);
         if (aug != null) {

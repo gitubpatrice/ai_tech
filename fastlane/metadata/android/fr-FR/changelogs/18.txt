@@ -1,0 +1,17 @@
+v0.9.2 — Audit cohérence + qualité (16 fixes)
+
+Build : isUniversalApk=false (~3x APK).
+
+Sécurité : sanitize RAG Llama2 <<SYS>> ajouté
+(injection doc .txt), stripBidi titre persisté
+(anti U+202E), bootstrap RAG redondant retiré.
+
+UI/a11y : showErrorSnack helper canonique (WCAG AA),
+dialog hash mismatch autofocus Ignorer.
+
+Bug : _booted reset après wipeAll (anti bootstrap
+no-op post-panic).
+
+Tests : audit_v0_9_2_test.dart (8 guards).
+
+100 % local.

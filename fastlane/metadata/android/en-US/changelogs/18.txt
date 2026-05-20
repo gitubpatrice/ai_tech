@@ -1,0 +1,17 @@
+v0.9.2 — Consistency + quality audit (16 fixes)
+
+Build: isUniversalApk=false (~3x APK saving).
+
+Security: RAG Llama2 <<SYS>> sanitize added (.txt
+injection), stripBidi on persisted title (anti
+U+202E), redundant RAG bootstrap removed.
+
+UI/a11y: showErrorSnack canonical helper (WCAG AA),
+hash mismatch dialog autofocus Ignore.
+
+Bug: _booted reset after wipeAll (anti silent
+bootstrap no-op post-panic).
+
+Tests: audit_v0_9_2_test.dart (8 guards).
+
+100% local.

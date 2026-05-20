@@ -516,6 +516,11 @@ class _ModelTileState extends State<_ModelTile> {
               ),
               actions: [
                 TextButton(
+                  // v0.9.2 (#10) — autofocus sur Ignorer (safe-default).
+                  // Avant : aucun autofocus, le focus système pouvait tomber
+                  // sur Désactiver (destructive). Aligné Pass Tech v2.4.4 U2,
+                  // PDF Tech v1.12.5 U3, RFT v2.13.2 S3.
+                  autofocus: true,
                   onPressed: () => Navigator.pop(ctx, false),
                   child: Text(t.settingsHashIgnore),
                 ),

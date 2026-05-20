@@ -15,6 +15,12 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
+    // v0.9.2 (#2) — `com.aitech.ai_tech` est le package historique pré-
+    // FilesTech (publié sous cet identifiant sur GitHub Release depuis
+    // v0.x.x). Cert SHA-256 lié. Migrer vers `com.filestech.ai_tech`
+    // serait destructive (perte historique installations utilisateurs).
+    // On conserve. (CLAUDE.md mention `com.filestech.ai_tech` est une
+    // erreur documentaire à corriger côté doc, pas côté code.)
     namespace = "com.aitech.ai_tech"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -60,7 +66,11 @@ android {
             isEnable = true
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
+            // v0.9.2 (#1) — passé à `false` (audit cohérence portfolio Files Tech) :
+            // un 4e APK universel (~3× plus lourd) en plus des 3 splits gonflait
+            // la release sans être distribué sur F-Droid. Aligné Pass / Notes /
+            // SMS Tech / PDF Tech / Read Files Tech.
+            isUniversalApk = false
         }
     }
 
