@@ -9,6 +9,17 @@ updates:
     labels:
       - "dependencies"
       - "dart"
+    # `files_tech_core` est declare en `path: ../files_tech_core`, donc hors du
+    # depot. Dependabot ne peut pas resoudre ce chemin dans son checkout : il
+    # rendait `unknown_error` sur cette seule dependance et faisait echouer TOUT
+    # le job pub, chaque lundi depuis au moins le 2026-05-25 (13 runs rouges
+    # consecutifs, jamais remontes). L'ignorer laisse passer le reste.
+    #
+    # AI Tech est la seule app du portefeuille dans ce cas : pass_tech,
+    # notes_tech, pdf_tech et read_files_tech declarent `files_tech_core` en
+    # `git:`, que Dependabot sait traiter.
+    ignore:
+      - dependency-name: "files_tech_core"
 
   - package-ecosystem: "github-actions"
     directory: "/"
